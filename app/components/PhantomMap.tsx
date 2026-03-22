@@ -322,7 +322,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             // Suppress all Cesium Ion requests — we use MapTiler exclusively.
             // Without this, Cesium fires authenticated requests to api.cesium.com
             // on every startup, which fail with [object Object] errors when no token is set.
-            Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1OWUxNy1mMWZiLTQzYjYtYTQ0OS1kMWFjYmFkNjc5YzciLCJpZCI6OTYwNDAsImlhdCI6MTY1MDQ1NDMxOH0.5sUZ7-YcGMlBNHPb4i3-vFDCXI1RDNeFKqBbCi3R5w8';
+            Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiMmRmYzcxNC0yZjM5LTQ0NzUtYWRkYi1kMjc1NzYwYTQ0NjYiLCJpZCI6MjE0OTQzLCJpYXQiOjE3MTU2NTMyNjN9.1fW--_-6R3TApPF2tAlOfXrqJadYPdwKqpPVkPetHP4';
             const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? '';
             const creditDiv = document.createElement('div');
             creditDiv.style.display = 'none';

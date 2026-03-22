@@ -351,6 +351,7 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
     const [showBuilding, setShowBuilding] = useState(true);
     const [showFootprint, setShowFootprint] = useState(true);
     const [clipEnabled, setClipEnabled] = useState(false);
+    const [inverseClip, setInverseClip] = useState(false);
     const [ready, setReady] = useState(false);
     const shadingRef = useRef<ShadingMode>('elevation');
     const contourRef = useRef(false);
@@ -466,10 +467,15 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
         if (footprintEntityRef.current) footprintEntityRef.current.show = showFootprint;
     }, [showFootprint]);
 
-    // Toggle ClippingPolygon enabled — viewer-4AbUS.js addToggleButton "Clip target location"
+    // Toggle ClippingPolygon enabled — viewer-8qsfg.js addToggleButton "Clip target location"
     useEffect(() => {
         if (clippingPolygonsRef.current) (clippingPolygonsRef.current as any).enabled = clipEnabled;
     }, [clipEnabled]);
+
+    // Toggle ClippingPolygon inverse — viewer-8qsfg.js addToggleButton "Inverse clip"
+    useEffect(() => {
+        if (clippingPolygonsRef.current) (clippingPolygonsRef.current as any).inverse = inverseClip;
+    }, [inverseClip]);
 
     // Fly inset camera to selected corridor when selection changes (corridor pathCoords fallback)
     useEffect(() => {
@@ -526,6 +532,7 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
                 <button onClick={() => setShowBuilding(v => !v)} style={btnStyle(showBuilding, T.teal)}>BUILDING</button>
                 <button onClick={() => setShowFootprint(v => !v)} style={btnStyle(showFootprint, T.blue)}>FOOTPRINT</button>
                 <button onClick={() => setClipEnabled(v => !v)} style={btnStyle(clipEnabled, T.amber)}>CLIP</button>
+                <button onClick={() => setInverseClip(v => !v)} style={btnStyle(inverseClip, T.pink)}>INVERT</button>
             </div>
 
             {/* Shading mode controls — get-elevation-contour-material.js viewModel */}
@@ -742,9 +749,10 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
         viewer.scene.verticalExaggerationRelativeHeight = terrainExaggeration ? 1200.0 : 0.0;
     }, [cesiumReady, terrainExaggeration]);
 
-    // Google Photorealistic 3D Tiles — from viewer-4AbUS.js
-    // When enabled: disable globe, add Google 3D tileset with corridor footprint clipping.
-    // When disabled: restore globe and remove the tileset.
+    // Google Photorealistic 3D Tiles — viewer-8qsfg.js
+    // globe: false, skyAtmosphere: true, createGooglePhotorealistic3DTileset,
+    // GeoJSON footprint (Ion 2533131) clampToGround, ClippingPolygonCollection,
+    // building tileset (Ion 2533124), inverse clip — all four toggles wired.
     useEffect(() => {
         const viewer = viewerRef.current;
         if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
@@ -753,15 +761,33 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
         if (photoReal) {
             viewer.scene.globe.show = false;
             viewer.scene.skyAtmosphere.show = true;
+
             Cesium.createGooglePhotorealistic3DTileset({
                 onlyUsingWithGoogleGeocoder: true,
             }).then((tileset: CesiumType.Cesium3DTileset) => {
                 if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
                 viewer.scene.primitives.add(tileset);
                 googleTilesetRef.current = tileset;
+
+                // Load footprint from Ion 2533131 and attach clipping polygons to the tileset
+                // — matches viewer-8qsfg.js: googleTileset.clippingPolygons = clippingPolygons
+                Cesium.IonResource.fromAssetId(2533131).then((resource: CesiumType.IonResource) =>
+                    (Cesium as any).GeoJsonDataSource.load(resource, { clampToGround: true })
+                ).then((ds: CesiumType.GeoJsonDataSource) => {
+                    if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+                    viewer.dataSources.add(ds);
+                    const fp = ds.entities.values.find((e: CesiumType.Entity) => (Cesium as any).defined(e.polygon));
+                    if (fp && googleTilesetRef.current) {
+                        (fp.polygon as any).outline = false;
+                        const positions = (fp.polygon as any).hierarchy.getValue().positions;
+                        const clippingPolygons = new (Cesium as any).ClippingPolygonCollection({
+                            polygons: [new (Cesium as any).ClippingPolygon({ positions })],
+                        });
+                        (googleTilesetRef.current as any).clippingPolygons = clippingPolygons;
+                    }
+                }).catch(() => {});
             }).catch(() => {});
         } else {
-            // Remove any existing google tileset
             if (googleTilesetRef.current) {
                 viewer.scene.primitives.remove(googleTilesetRef.current);
                 googleTilesetRef.current = null;

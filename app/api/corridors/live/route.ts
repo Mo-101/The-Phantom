@@ -156,7 +156,7 @@ export async function GET() {
                 seasonal: score.seasonallyActive,
                 canoe: score.requiresCanoe,
                 detour: score.conflictDetour,
-                firstDetected: score.firstDetected,
+                firstDetected: score.firstDetected ?? new Date().toISOString(),
                 coverage: c.coverage,
                 nearestFormal: c.nearestFormal,
                 gapZone: c.gapZone,

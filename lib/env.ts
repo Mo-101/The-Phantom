@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 const ServerEnvSchema = z.object({
-  // AI
-  GEMINI_API_KEY: z.string().min(1, 'Missing GEMINI_API_KEY — get one at https://aistudio.google.com/apikey'),
+  // AI (optional — only required for AI chat features, not map/corridor)
+  GEMINI_API_KEY: z.string().optional(),
 
   // Database
   NEON_DATABASE_URL: z.string().optional(), // was DATABASE_URL

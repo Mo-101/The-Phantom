@@ -48,7 +48,8 @@ function Dot({ active, color }: { active: boolean; color: string }) {
     return <span style={{ width: 5, height: 5, borderRadius: '50%', background: active ? color : T.muted, display: 'inline-block', boxShadow: active ? `0 0 6px ${color}` : 'none', animation: active ? 'poe-dot 1.4s ease-in-out infinite' : 'none', flexShrink: 0 }} />;
 }
 function Bar({ value, color, height = 3 }: { value: number; color: string; height?: number }) {
-    return <div style={{ flex: 1, height, background: T.dim, borderRadius: 2, overflow: 'hidden' }}><div style={{ height: '100%', width: `${value * 100}%`, background: color, borderRadius: 2 }} /></div>;
+    const safeVal = (value == null || isNaN(value)) ? 0 : Math.min(1, Math.max(0, value));
+    return <div style={{ flex: 1, height, background: T.dim, borderRadius: 2, overflow: 'hidden' }}><div style={{ height: '100%', width: `${safeVal * 100}%`, background: color, borderRadius: 2 }} /></div>;
 }
 
 function CorridorCard({ c, sel, onClick }: { c: Corridor; sel: boolean; onClick: () => void }) {
@@ -79,8 +80,8 @@ function EvidenceTab({ corridor, currentDay }: { corridor: Corridor; currentDay:
     if (!corridor) return <div style={{ padding: 16, fontSize: 10, color: T.muted }}>NO CORRIDOR SELECTED</div>;
     return (
         <div style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 12 }}>SIGNAL CHAIN · {corridor.evidence.filter(e => e.day <= currentDay).length}/{corridor.evidence.length} ATOMS</div>
-            {corridor.evidence.map(a => {
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 12 }}>SIGNAL CHAIN · {(corridor.evidence ?? []).filter(e => e.day <= currentDay).length}/{(corridor.evidence ?? []).length} ATOMS</div>
+            {(corridor.evidence ?? []).map(a => {
                 const tc = SIGTYPE[a.type] ?? T.sub; const vis = a.day <= currentDay;
                 return (
                     <div key={a.id} style={{ marginBottom: 9, padding: '9px 11px', background: vis ? T.card : T.surf, borderRadius: 3, borderLeft: `3px solid ${vis ? tc : T.border}`, opacity: vis ? 1 : .3, transition: 'all .3s' }}>
@@ -114,7 +115,7 @@ function ScoresTab({ corridor }: { corridor: Corridor }) {
     return (
         <div style={{ padding: '14px 16px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 14 }}>7 MATHEMATICAL SOULS + TERRAIN PHYSICS</div>
-            {corridor.souls.map(s => {
+            {(corridor.souls ?? []).map(s => {
                 const isHigh = s.value >= 0.78;
                 return (
                     <div key={s.key} style={{ marginBottom: 12 }}>
@@ -159,10 +160,12 @@ function CascadeTab({ corridor, currentDay, timeWindow }: { corridor: Corridor; 
     const W = CW - padL - padR, H = CH - padT - padB;
     const cx = (d: number) => padL + Math.min(1, d / maxDay) * W;
     const cy = (k: number) => padT + H - Math.min(1, k / maxKm) * H;
-    const last = corridor.evidence[corridor.evidence.length - 1]!;
-    const sources = [...new Set(corridor.evidence.map(e => e.source))];
-    const phantomKm = corridor.nodes.find(n => n.type === 'phantom')?.km;
-    const borderKm = corridor.nodes.find(n => n.type === 'border')?.km;
+    const safeEvidence = corridor.evidence ?? [];
+    const safeNodes = corridor.nodes ?? [];
+    const last = safeEvidence[safeEvidence.length - 1] ?? { day: 0, km: 0 };
+    const sources = [...new Set(safeEvidence.map(e => e.source))];
+    const phantomKm = safeNodes.find(n => n.type === 'phantom')?.km;
+    const borderKm = safeNodes.find(n => n.type === 'border')?.km;
 
     const stepDays = timeWindow === '7D' ? 1 : timeWindow === '14D' ? 2 : timeWindow === '30D' ? 5 : timeWindow === '12W' ? 14 : timeWindow === '6M' ? 30 : 60;
     const tickDays = [];
@@ -171,7 +174,7 @@ function CascadeTab({ corridor, currentDay, timeWindow }: { corridor: Corridor; 
     const arcData: { d: number; v: number }[] = [];
     for (let d = 0; d <= maxDay; d += maxDay / 40) {
         if (d > currentDay) break;
-        const recentSignals = corridor.evidence.filter(e => e.day >= d - 14 && e.day <= d).length;
+        const recentSignals = safeEvidence.filter(e => e.day >= d - 14 && e.day <= d).length;
         const normalized = Math.min(1.0, (recentSignals / 6) + (Math.sin(d / 12) * 0.15 + 0.15));
         arcData.push({ d, v: normalized });
     }
@@ -211,7 +214,7 @@ function CascadeTab({ corridor, currentDay, timeWindow }: { corridor: Corridor; 
                 {borderKm !== undefined && <><line x1={padL} y1={cy(borderKm)} x2={CW - padR} y2={cy(borderKm)} stroke={T.blue} strokeWidth="1" strokeDasharray="5,3" opacity=".7" /><text x={CW - padR + 3} y={cy(borderKm) + 3} fill={T.blue} fontSize="8" fontFamily="monospace">border</text></>}
                 {phantomKm !== undefined && <><line x1={padL} y1={cy(phantomKm)} x2={CW - padR} y2={cy(phantomKm)} stroke={T.amber} strokeWidth="1" strokeDasharray="3,3" opacity=".8" /><text x={CW - padR + 3} y={cy(phantomKm) + 3} fill={T.amber} fontSize="8" fontFamily="monospace">phantom</text></>}
                 <line x1={cx(0)} y1={cy(0)} x2={cx(last.day)} y2={cy(last.km)} stroke={rc} strokeWidth="1" strokeDasharray="3,3" opacity=".4" />
-                {corridor.evidence.map(sig => {
+                {safeEvidence.map(sig => {
                     const sc = SIGTYPE[sig.type] ?? T.sub; const vis = sig.day <= currentDay;
                     return (
                         <g key={sig.id}>
@@ -233,8 +236,8 @@ function CascadeTab({ corridor, currentDay, timeWindow }: { corridor: Corridor; 
 function BriefTab({ corridor }: { corridor: Corridor }) {
     if (!corridor) return <div style={{ padding: 16, fontSize: 10, color: T.muted }}>NO DATA</div>;
     const rc = RISK[corridor.riskClass] ?? T.muted;
-    const drivers = corridor.souls.filter(s => s.value >= 0.78).map(s => s.name);
-    const sources = [...new Set(corridor.evidence.map(e => e.source))];
+    const drivers = (corridor.souls ?? []).filter(s => s.value >= 0.78).map(s => s.name);
+    const sources = [...new Set((corridor.evidence ?? []).map(e => e.source))];
     return (
         <div style={{ padding: '14px 16px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 12 }}>CORRIDOR INTELLIGENCE BRIEF</div>
@@ -243,9 +246,9 @@ function BriefTab({ corridor }: { corridor: Corridor }) {
                 <div style={{ fontSize: 9, color: T.sub, marginBottom: 7 }}>Issued · {new Date().toISOString().slice(0, 10)} · {RUN_ID}</div>
                 <div style={{ fontSize: 10, color: T.text, lineHeight: 1.8, marginBottom: 11 }}>Probable informal cross-border corridor detected between <span style={{ color: rc }}>{corridor.startNode}</span> ({corridor.startCC}) and <span style={{ color: rc }}>{corridor.endNode}</span> ({corridor.endCC}). {corridor.coverage}.</div>
                 <div style={{ fontSize: 8, color: T.muted, letterSpacing: 1.2, marginBottom: 6 }}>INFERRED PATHWAY</div>
-                {corridor.nodes.map((n, i) => (
+                {(corridor.nodes ?? []).map((n, i) => (
                     <div key={n.name} style={{ display: 'flex', gap: 9, alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, color: n.type === 'phantom' ? T.amber : rc, width: 9, textAlign: 'center' }}>{i === 0 ? '▶' : i === corridor.nodes.length - 1 ? '◼' : '┊'}</span>
+                        <span style={{ fontSize: 10, color: n.type === 'phantom' ? T.amber : rc, width: 9, textAlign: 'center' }}>{i === 0 ? '▶' : i === (corridor.nodes ?? []).length - 1 ? '◼' : '┊'}</span>
                         <span style={{ fontSize: 11, color: n.type === 'phantom' ? T.amber : T.text }}>{n.name}</span>
                         <span style={{ fontSize: 8, color: T.sub }}>{n.cc}</span>
                         {n.type === 'phantom' && <span style={{ fontSize: 7, padding: '1px 5px', background: `${T.amber}18`, color: T.amber, borderRadius: 2 }}>PHANTOM</span>}
@@ -257,43 +260,37 @@ function BriefTab({ corridor }: { corridor: Corridor }) {
     );
 }
 
-export default function PhantomMap() {
+interface PhantomMapProps {
+    CORRIDORS: Corridor[];
+    initialSelId: string;
+}
+
+export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps) {
     const mapDivRef = useRef<HTMLDivElement>(null);
     const viewerRef = useRef<CesiumType.Viewer | null>(null);
     const entityIdsRef = useRef<string[]>([]);
     const [cesiumReady, setCesiumReady] = useState(false);
-    const [corridors, setCorridors] = useState<Corridor[]>([]);
-    const [selId, setSelId] = useState<string | null>(null);
+    const [corridors, setCorridors] = useState<Corridor[]>(CORRIDORS ?? []);
+    const [selId, setSelId] = useState<string | null>(initialSelId ?? null);
     const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief'>('evidence');
     const [timeWindow, setTimeWindow] = useState<TimeWindow>('14D');
     const [currentDay, setCurrentDay] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [clock, setClock] = useState('');
     const [showSidebar, setShowSidebar] = useState(true);
-    const [loading, setLoading] = useState(true);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [terrainRelief, setTerrainRelief] = useState(false);
     const [terrainExaggeration, setTerrainExaggeration] = useState(false);
     const [showOfficialRoute, setShowOfficialRoute] = useState(true);
     const [showGapAnalysis, setShowGapAnalysis] = useState(false);
     const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; title: string; subtitle: string; color: string; details?: { label: string; value: string }[] } | null>(null);
 
+    // Sync corridors if parent re-fetches and passes updated props
     useEffect(() => {
-        async function fetchCorridors() {
-            try {
-                const res = await fetch('/api/corridors');
-                if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-                const data = await res.json();
-                setCorridors(data.items ?? []);
-                if (data.items?.length > 0) setSelId(data.items[0].id);
-                setLoading(false);
-            } catch (err) {
-                setErrorMsg(err instanceof Error ? err.message : 'Fetch Failed');
-                setLoading(false);
-            }
+        if (CORRIDORS && CORRIDORS.length > 0) {
+            setCorridors(CORRIDORS);
+            if (!selId) setSelId(initialSelId);
         }
-        fetchCorridors();
-    }, []);
+    }, [CORRIDORS, initialSelId]);
 
     const corridor = corridors.find(c => c.id === selId) ?? corridors[0];
     const rc = corridor ? (RISK[corridor.riskClass] ?? T.muted) : T.muted;
@@ -471,9 +468,11 @@ export default function PhantomMap() {
 
     const flyToCorridorCamera = useCallback(() => {
         const viewer = viewerRef.current;
-        if (!viewer || viewer.isDestroyed() || !window.Cesium || !corridor || !corridor.cameraCenter) return;
-        const Cesium = window.Cesium; const cam = corridor.cameraCenter;
-        viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt), orientation: { heading: Cesium.Math.toRadians(cam.heading), pitch: Cesium.Math.toRadians(-50), roll: 0 }, duration: 1.8, easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT });
+        if (!viewer || viewer.isDestroyed() || !window.Cesium || !corridor) return;
+        const cam = corridor.cameraCenter;
+        if (!cam || cam.lng == null || cam.lat == null || cam.alt == null) return;
+        const Cesium = window.Cesium;
+        viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt), orientation: { heading: Cesium.Math.toRadians(cam.heading ?? 0), pitch: Cesium.Math.toRadians(-50), roll: 0 }, duration: 1.8, easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT });
     }, [corridor]);
 
     useEffect(() => { if (cesiumReady) flyToCorridorCamera(); }, [cesiumReady, flyToCorridorCamera]);
@@ -502,11 +501,6 @@ export default function PhantomMap() {
                 </div>
 
                 <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-                    {loading && (
-                        <div style={{ position: 'absolute', inset: 0, background: `${T.bg}DD`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, fontSize: 10, letterSpacing: 2 }}>
-                            SYNCHRONIZING REAL-TIME INTELLIGENCE...
-                        </div>
-                    )}
 
                     {showSidebar && (
                         <div style={{ width: 215, flexShrink: 0, background: T.surf, borderRight: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>

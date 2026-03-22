@@ -18,6 +18,20 @@ export default function AppHeader() {
         const unsub = onAuthStateChanged(auth, (u) => {
             setUser(u);
             setReady(true);
+            // Sync Firebase user session into Neon for audit/corridor scoping
+            if (u) {
+                fetch('/api/firebase/user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: u.uid,
+                        email: u.email,
+                        displayName: u.displayName,
+                        provider: u.providerData[0]?.providerId ?? 'google.com',
+                        metadata: { photoURL: u.photoURL },
+                    }),
+                }).catch(() => {});
+            }
         });
         return unsub;
     }, []);
@@ -49,7 +63,13 @@ export default function AppHeader() {
                 </div>
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
+                <a
+                    href="/analytics"
+                    className="font-mono text-xs uppercase tracking-widest text-green-400/70 hover:text-green-400 border border-green-400/30 hover:border-green-400 px-3 py-1 transition"
+                >
+                    Analytics
+                </a>
                 {!ready ? null : user ? (
                     <div className="flex items-center gap-3 text-green-400 font-mono text-sm">
                         {user.photoURL && (

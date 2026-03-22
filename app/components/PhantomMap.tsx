@@ -260,6 +260,245 @@ function BriefTab({ corridor }: { corridor: Corridor }) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// TerrainInset — picture-in-picture Cesium viewer showing elevation/slope/aspect
+// shading with contour lines and the corridor footprint polygon clamped to
+// ground. Based on get-elevation-contour-material.js and viewer-638QR.js.
+// ---------------------------------------------------------------------------
+type ShadingMode = 'elevation' | 'slope' | 'aspect' | 'none';
+
+function buildColorRamp(mode: ShadingMode): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = 100; canvas.height = 1;
+    const ctx = canvas.getContext('2d')!;
+    const grd = ctx.createLinearGradient(0, 0, 100, 0);
+    if (mode === 'elevation') {
+        const stops = [0.0, 0.045, 0.1, 0.15, 0.37, 0.54, 1.0];
+        const colors = ['#000000', '#2747E0', '#D33B7D', '#D33038', '#FF9742', '#ffd700', '#ffffff'];
+        stops.forEach((s, i) => grd.addColorStop(s, colors[i]!));
+    } else if (mode === 'slope') {
+        const stops = [0.0, 0.29, 0.5, Math.sqrt(2) / 2, 0.87, 0.91, 1.0];
+        const colors = ['#000000', '#2747E0', '#D33B7D', '#D33038', '#FF9742', '#ffd700', '#ffffff'];
+        stops.forEach((s, i) => grd.addColorStop(s, colors[i]!));
+    } else if (mode === 'aspect') {
+        const stops = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9, 1.0];
+        const colors = ['#000000', '#2747E0', '#D33B7D', '#D33038', '#FF9742', '#ffd700', '#ffffff'];
+        stops.forEach((s, i) => grd.addColorStop(s, colors[i]!));
+    }
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, 100, 1);
+    return canvas;
+}
+
+function applyTerrainMaterial(
+    Cesium: typeof CesiumType,
+    globe: CesiumType.Globe,
+    mode: ShadingMode,
+    enableContour: boolean,
+) {
+    const MIN_H = -414, MAX_H = 8777;
+    let material: CesiumType.Material | undefined;
+
+    if (mode === 'none' && !enableContour) { globe.material = undefined as unknown as CesiumType.Material; return; }
+
+    if (enableContour && mode !== 'none') {
+        const typeMap: Record<string, string> = { elevation: 'ElevationColorContour', slope: 'SlopeColorContour', aspect: 'AspectColorContour' };
+        const subMat: Record<string, string> = { elevation: 'elevationRampMaterial', slope: 'slopeRampMaterial', aspect: 'aspectRampMaterial' };
+        const subType: Record<string, string> = { elevation: 'ElevationRamp', slope: 'SlopeRamp', aspect: 'AspectRamp' };
+        material = new Cesium.Material({
+            fabric: {
+                type: typeMap[mode],
+                materials: { contourMaterial: { type: 'ElevationContour' }, [subMat[mode]!]: { type: subType[mode] } },
+                components: { diffuse: `contourMaterial.alpha == 0.0 ? ${subMat[mode]}.diffuse : contourMaterial.diffuse`, alpha: `max(contourMaterial.alpha, ${subMat[mode]}.alpha)` },
+            }, translucent: false,
+        });
+        const shadingU = (material as any).materials[subMat[mode]!].uniforms;
+        if (mode === 'elevation') { shadingU.minimumHeight = MIN_H; shadingU.maximumHeight = MAX_H; }
+        shadingU.image = buildColorRamp(mode);
+        const contourU = (material as any).materials.contourMaterial.uniforms;
+        contourU.width = 2.0; contourU.spacing = 150.0; contourU.color = Cesium.Color.RED.clone();
+    } else if (enableContour) {
+        material = Cesium.Material.fromType('ElevationContour');
+        (material.uniforms as any).width = 2.0; (material.uniforms as any).spacing = 150.0; (material.uniforms as any).color = Cesium.Color.RED.clone();
+    } else {
+        const typeMap: Record<string, string> = { elevation: 'ElevationRamp', slope: 'SlopeRamp', aspect: 'AspectRamp' };
+        material = Cesium.Material.fromType(typeMap[mode]!);
+        const u = material.uniforms as any;
+        if (mode === 'elevation') { u.minimumHeight = MIN_H; u.maximumHeight = MAX_H; }
+        u.image = buildColorRamp(mode);
+    }
+    globe.material = material!;
+}
+
+interface TerrainInsetProps {
+    corridor: Corridor | undefined;
+    ionToken: string;
+}
+
+function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
+    const insetRef = useRef<HTMLDivElement>(null);
+    const insetViewerRef = useRef<CesiumType.Viewer | null>(null);
+    const footprintEntityRef = useRef<CesiumType.Entity | null>(null);
+    const [shadingMode, setShadingMode] = useState<ShadingMode>('elevation');
+    const [contour, setContour] = useState(false);
+    const [ready, setReady] = useState(false);
+    const shadingRef = useRef<ShadingMode>('elevation');
+    const contourRef = useRef(false);
+
+    // Build the inset viewer once
+    useEffect(() => {
+        if (!insetRef.current || !window.Cesium) return;
+        const Cesium = window.Cesium;
+        Cesium.Ion.defaultAccessToken = ionToken;
+
+        const creditDiv = document.createElement('div');
+        creditDiv.style.display = 'none';
+        document.body.appendChild(creditDiv);
+
+        const viewer = new Cesium.Viewer(insetRef.current, {
+            animation: false, baseLayerPicker: false, fullscreenButton: false,
+            geocoder: false, homeButton: false, infoBox: false,
+            sceneModePicker: false, selectionIndicator: false, timeline: false,
+            navigationHelpButton: false, scene3DOnly: true,
+            creditContainer: creditDiv, requestRenderMode: false,
+            imageryProvider: false as unknown as CesiumType.ImageryProvider,
+            baseLayer: false as unknown as CesiumType.ImageryLayer,
+        });
+
+        // OSM fallback imagery
+        viewer.imageryLayers.removeAll();
+        viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            maximumLevel: 19,
+            credit: new Cesium.Credit('© OpenStreetMap contributors'),
+        }));
+
+        // World Terrain with vertex normals for slope/aspect shading
+        Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then(tp => {
+            if (!insetViewerRef.current?.isDestroyed()) {
+                insetViewerRef.current!.terrainProvider = tp;
+                applyTerrainMaterial(Cesium, insetViewerRef.current!.scene.globe, shadingRef.current, contourRef.current);
+            }
+        }).catch(() => {});
+
+        viewer.scene.globe.enableLighting = true;
+        viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#070A10');
+        viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#070A10');
+        insetViewerRef.current = viewer;
+        setReady(true);
+
+        return () => {
+            if (!viewer.isDestroyed()) viewer.destroy();
+            insetViewerRef.current = null;
+        };
+    }, [ionToken]);
+
+    // Re-apply terrain material when mode or contour changes
+    useEffect(() => {
+        shadingRef.current = shadingMode;
+        contourRef.current = contour;
+        const v = insetViewerRef.current;
+        if (!v || v.isDestroyed() || !ready || !window.Cesium) return;
+        applyTerrainMaterial(window.Cesium, v.scene.globe, shadingMode, contour);
+    }, [shadingMode, contour, ready]);
+
+    // Draw footprint polygon + fly to corridor when selection changes
+    useEffect(() => {
+        const v = insetViewerRef.current;
+        if (!v || v.isDestroyed() || !ready || !window.Cesium) return;
+        const Cesium = window.Cesium;
+
+        // Remove previous footprint
+        if (footprintEntityRef.current) { v.entities.remove(footprintEntityRef.current); footprintEntityRef.current = null; }
+
+        if (!corridor || !corridor.pathCoords || corridor.pathCoords.length === 0) return;
+
+        // Build footprint polygon from corridor path coordinates (from viewer-638QR.js approach)
+        const positions = corridor.pathCoords.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat));
+        const rc = RISK[corridor.riskClass] ?? T.muted;
+        const entity = v.entities.add({
+            id: `inset-footprint-${corridor.id}`,
+            polygon: {
+                hierarchy: new Cesium.PolygonHierarchy(positions),
+                material: Cesium.Color.fromCssColorString(rc).withAlpha(0.25),
+                outline: false, // matches viewer-638QR.js: footprint.polygon.outline = false
+                classificationType: Cesium.ClassificationType.TERRAIN,
+            },
+        });
+        footprintEntityRef.current = entity;
+
+        // Fly the inset camera to the corridor (viewer-638QR.js cameraOffset approach)
+        const cam = corridor.cameraCenter;
+        v.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt * 0.4),
+            orientation: { heading: Cesium.Math.toRadians(cam.heading), pitch: Cesium.Math.toRadians(-55), roll: 0 },
+            duration: 1.2,
+        });
+    }, [corridor, ready]);
+
+    const MODES: { k: ShadingMode; label: string }[] = [
+        { k: 'elevation', label: 'ELEV' },
+        { k: 'slope', label: 'SLOPE' },
+        { k: 'aspect', label: 'ASPECT' },
+        { k: 'none', label: 'NONE' },
+    ];
+
+    return (
+        <div style={{
+            position: 'absolute', bottom: 14, right: 8, width: 260, height: 190,
+            background: T.surf, border: `1px solid ${T.border}`, borderRadius: 3,
+            zIndex: 30, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.7)',
+        }}>
+            {/* Inset Cesium container */}
+            <div ref={insetRef} style={{ width: '100%', height: '100%' }} />
+
+            {/* Header label */}
+            <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0,
+                background: `${T.bg}CC`, padding: '4px 8px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                borderBottom: `1px solid ${T.border}`,
+            }}>
+                <span style={{ fontSize: 7, letterSpacing: 1.5, color: T.muted }}>TERRAIN INSET</span>
+                {corridor && <span style={{ fontSize: 7, color: RISK[corridor.riskClass] ?? T.muted }}>{corridor.short}</span>}
+            </div>
+
+            {/* Shading controls — matches viewModel pattern from get-elevation-contour-material.js */}
+            <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: `${T.bg}CC`, padding: '4px 8px',
+                display: 'flex', gap: 4, alignItems: 'center',
+                borderTop: `1px solid ${T.border}`,
+            }}>
+                {MODES.map(m => (
+                    <button key={m.k} onClick={() => setShadingMode(m.k)} style={{
+                        background: shadingMode === m.k ? T.green : 'none',
+                        color: shadingMode === m.k ? T.bg : T.muted,
+                        border: `1px solid ${shadingMode === m.k ? T.green : T.border}`,
+                        padding: '1px 5px', fontSize: 6, cursor: 'pointer', borderRadius: 2,
+                    }}>{m.label}</button>
+                ))}
+                <button onClick={() => setContour(!contour)} style={{
+                    background: contour ? T.amber : 'none',
+                    color: contour ? T.bg : T.muted,
+                    border: `1px solid ${contour ? T.amber : T.border}`,
+                    padding: '1px 5px', fontSize: 6, cursor: 'pointer', borderRadius: 2, marginLeft: 'auto',
+                }}>CONTOUR</button>
+            </div>
+
+            {/* Elevation ramp legend — from getColorRamp() in get-elevation-contour-material.js */}
+            {shadingMode !== 'none' && (
+                <div style={{
+                    position: 'absolute', top: 24, right: 5,
+                    width: 8, height: 80, borderRadius: 2, overflow: 'hidden',
+                    background: 'linear-gradient(to top, #000000, #2747E0, #D33B7D, #D33038, #FF9742, #ffd700, #ffffff)',
+                    border: `1px solid ${T.border}`,
+                }} />
+            )}
+        </div>
+    );
+}
+
 interface PhantomMapProps {
     CORRIDORS: Corridor[];
     initialSelId: string;
@@ -322,7 +561,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             // Suppress all Cesium Ion requests — we use MapTiler exclusively.
             // Without this, Cesium fires authenticated requests to api.cesium.com
             // on every startup, which fail with [object Object] errors when no token is set.
-            Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1OWUxNy1mMWZiLTQzYjYtYTQ0OS1kMWFjYmFkNjc5YzciLCJpZCI6OTYwNDAsImlhdCI6MTY1MDQ1NDMxOH0.5sUZ7-YcGMlBNHPb4i3-vFDCXI1RDNeFKqBbCi3R5w8';
+            Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiMmRmYzcxNC0yZjM5LTQ0NzUtYWRkYi1kMjc1NzYwYTQ0NjYiLCJpZCI6MjE0OTQzLCJpYXQiOjE3MTU2NTMyNjN9.1fW--_-6R3TApPF2tAlOfXrqJadYPdwKqpPVkPetHP4';
             const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? '';
             const creditDiv = document.createElement('div');
             creditDiv.style.display = 'none';
@@ -339,11 +578,32 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             });
             viewer.imageryLayers.removeAll();
             if (maptilerKey) {
-                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`, maximumLevel: 18, credit: new Cesium.Credit('© MapTiler · © OpenStreetMap') }));
-                Cesium.CesiumTerrainProvider.fromUrl(new Cesium.Resource({ url: 'https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/', queryParameters: { key: maptilerKey } }), { requestVertexNormals: true }).then(tp => { if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp; }).catch(() => { });
+                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                    url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`,
+                    maximumLevel: 18,
+                    credit: new Cesium.Credit('© MapTiler · © OpenStreetMap'),
+                }));
+                Cesium.CesiumTerrainProvider.fromUrl(new Cesium.Resource({
+                    url: 'https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/',
+                    queryParameters: { key: maptilerKey },
+                }), { requestVertexNormals: true }).then(tp => {
+                    if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp;
+                }).catch(() => { });
+            } else {
+                // Fallback: OpenStreetMap tiles (no API key required) so the globe is
+                // never a plain black void when NEXT_PUBLIC_MAPTILER_KEY is not set.
+                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    maximumLevel: 19,
+                    credit: new Cesium.Credit('© OpenStreetMap contributors'),
+                }));
+                // Load Cesium World Terrain using the Ion token we already set above
+                Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then(tp => {
+                    if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp;
+                }).catch(() => { });
             }
-            viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(T.bg);
-            viewer.scene.backgroundColor = Cesium.Color.fromCssColorString(T.bg);
+            viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e1a');
+            viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0e1a');
             viewerRef.current = viewer;
             setCesiumReady(true);
 
@@ -455,7 +715,9 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                     if (node.type === 'border' || node.type === 'start' || node.type === 'end') {
                         const isBorder = node.type === 'border';
                         const gapCovId = `${cor.id}-gap-cov-${node.name}`;
-                        viewer.entities.add({ id: gapCovId, position: Cesium.Cartesian3.fromDegrees(node.lng, node.lat), ellipse: { semiMinorAxis: isBorder ? 12000 : 8000, semiMajorAxis: isBorder ? 12000 : 8000, material: Cesium.Color.fromCssColorString(isBorder ? T.blue : T.sub).withAlpha(isBorder ? 0.15 : 0.05), outline: true, outlineColor: Cesium.Color.fromCssColorString(isBorder ? T.blue : T.sub).withAlpha(0.6), outlineWidth: 2, classificationType: Cesium.ClassificationType.TERRAIN } });
+                        // outline: true is unsupported on terrain-clamped geometry — Cesium ignores it
+                        // and logs a warning. Use a thin outer fill ellipse for the ring effect instead.
+                        viewer.entities.add({ id: gapCovId, position: Cesium.Cartesian3.fromDegrees(node.lng, node.lat), ellipse: { semiMinorAxis: isBorder ? 12000 : 8000, semiMajorAxis: isBorder ? 12000 : 8000, material: Cesium.Color.fromCssColorString(isBorder ? T.blue : T.sub).withAlpha(isBorder ? 0.15 : 0.05), outline: false, classificationType: Cesium.ClassificationType.TERRAIN } });
                         entityIdsRef.current.push(gapCovId);
                     }
                     if (node.type === 'phantom') {
@@ -556,6 +818,15 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                         <div style={{ position: 'absolute', top: 12, right: 14, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <button onClick={() => setShowSidebar(!showSidebar)} style={{ background: T.surf, border: `1px solid ${T.border}`, color: T.sub, padding: '4px 10px', fontSize: 7 }}>{showSidebar ? 'HIDE LIST' : 'SHOW LIST'}</button>
                         </div>
+                        {/* Terrain inset — elevation/slope/aspect shading with contour lines
+                            and corridor footprint polygon, per get-elevation-contour-material.js
+                            and viewer-638QR.js reference patterns */}
+                        {cesiumReady && (
+                            <TerrainInset
+                                corridor={corridor}
+                                ionToken={process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiMmRmYzcxNC0yZjM5LTQ0NzUtYWRkYi1kMjc1NzYwYTQ0NjYiLCJpZCI6MjE0OTQzLCJpYXQiOjE3MTU2NTMyNjN9.1fW--_-6R3TApPF2tAlOfXrqJadYPdwKqpPVkPetHP4'}
+                            />
+                        )}
                     </div>
 
                     <div style={{ width: 285, flexShrink: 0, background: T.surf, borderLeft: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>

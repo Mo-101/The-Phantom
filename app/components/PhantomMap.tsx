@@ -62,7 +62,7 @@ function CorridorCard({ c, sel, onClick }: { c: Corridor; sel: boolean; onClick:
             <div style={{ fontSize: 9, color: T.muted, marginBottom: 6 }}>{c.startNode} → {c.endNode}</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 5 }}>
                 <Bar value={c.score} color={rc} height={3} />
-                <span style={{ fontSize: 12, color: rc, fontWeight: 600, minWidth: 38 }}>{c.score.toFixed(2)}</span>
+                <span style={{ fontSize: 12, color: rc, fontWeight: 600, minWidth: 38 }}>{(c.score ?? 0).toFixed(2)}</span>
             </div>
             <div style={{ display: 'flex', gap: 10, fontSize: 8, color: T.muted, alignItems: 'center' }}>
                 <span style={{ display: 'flex', gap: 4, alignItems: 'center', color: c.activated ? T.green : T.muted }}>
@@ -99,7 +99,7 @@ function EvidenceTab({ corridor, currentDay }: { corridor: Corridor; currentDay:
                         <div style={{ fontStyle: 'italic', fontSize: 7, color: T.border, marginBottom: 5 }}>{a.sourceId}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <Bar value={a.score} color={tc} height={3} />
-                            <span style={{ fontSize: 8, color: T.muted, minWidth: 38 }}>t:{a.score.toFixed(2)}</span>
+                            <span style={{ fontSize: 8, color: T.muted, minWidth: 38 }}>t:{(a.score ?? 0).toFixed(2)}</span>
                         </div>
                     </div>
                 );
@@ -127,11 +127,11 @@ function ScoresTab({ corridor }: { corridor: Corridor }) {
                                     {isHigh && <span style={{ fontSize: 7, color: rc, marginLeft: 6, padding: '1px 4px', background: `${rc}15`, borderRadius: 2 }}>DRIVER</span>}
                                 </div>
                             </div>
-                            <span style={{ fontSize: 12, color: isHigh ? rc : T.sub, fontWeight: 600 }}>{s.value.toFixed(3)}</span>
+                            <span style={{ fontSize: 12, color: isHigh ? rc : T.sub, fontWeight: 600 }}>{(s.value ?? 0).toFixed(3)}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
                             <Bar value={s.value} color={isHigh ? rc : `${rc}55`} height={4} />
-                            <span style={{ fontSize: 8, color: T.muted, minWidth: 80, textAlign: 'right' }}>×{s.w.toFixed(2)}={(s.w * s.value).toFixed(4)}</span>
+                            <span style={{ fontSize: 8, color: T.muted, minWidth: 80, textAlign: 'right' }}>×{(s.w ?? 0).toFixed(2)}={((s.w ?? 0) * (s.value ?? 0)).toFixed(4)}</span>
                         </div>
                         <div style={{ fontSize: 8, color: T.border, paddingLeft: 25 }}>{s.desc}</div>
                     </div>
@@ -143,7 +143,7 @@ function ScoresTab({ corridor }: { corridor: Corridor }) {
                     <div style={{ fontSize: 8, color: corridor.activated ? T.green : T.muted, marginTop: 2 }}>{corridor.riskClass} · {corridor.activated ? '◉ ACTIVATED' : '○ MONITORING'}</div>
                     <div style={{ fontSize: 7, color: T.muted, marginTop: 1 }}>truth floor: 0.75</div>
                 </div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: rc, letterSpacing: 2 }}>{corridor.score.toFixed(4)}</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: rc, letterSpacing: 2 }}>{(corridor?.score ?? 0).toFixed(4)}</div>
             </div>
         </div>
     );
@@ -349,7 +349,7 @@ export default function PhantomMap() {
                         const details: { label: string; value: string }[] = [];
                         if (kind === 'node') { if (meta['type']) details.push({ label: 'TYPE', value: String(meta['type']).toUpperCase() }); if (meta['cc']) details.push({ label: 'COUNTRY', value: String(meta['cc']) }); if (meta['prec']) details.push({ label: 'PRECISION', value: String(meta['prec']) }); if (meta['km'] != null) details.push({ label: 'KM', value: String(meta['km']) }); }
                         else { if (meta['type']) details.push({ label: 'SIGNAL', value: String(meta['type']) }); if (meta['source']) details.push({ label: 'SOURCE', value: String(meta['source']) }); details.push({ label: 'SCORE', value: Number(meta['score'] ?? 0).toFixed(3) }); }
-                        if (meta['lat'] != null) details.push({ label: 'COORD', value: `${Number(meta['lat']).toFixed(4)}, ${Number(meta['lng']).toFixed(4)}` });
+                        if (meta['lat'] != null && meta['lng'] != null) details.push({ label: 'COORD', value: `${Number(meta['lat']).toFixed(4)}, ${Number(meta['lng']).toFixed(4)}` });
                         setHoverInfo({ x: mv.endPosition.x, y: mv.endPosition.y, title: entity.label?.text?.getValue(Cesium.JulianDate.now()) as string ?? eid, subtitle: kind === 'node' ? 'CORRIDOR NODE' : 'EVIDENCE ATOM', color: T.green, details });
                         return;
                     }
@@ -541,7 +541,7 @@ export default function PhantomMap() {
                     </div>
 
                     <div style={{ width: 285, flexShrink: 0, background: T.surf, borderLeft: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>
-                        {corridor && (
+                        {corridor && corridor.score != null && (
                             <div style={{ padding: '10px 13px', borderBottom: `1px solid ${T.border}` }}>
                                 <div style={{ fontSize: 13, color: rc, letterSpacing: 2 }}>{corridor.id}</div>
                                 <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{corridor.score.toFixed(4)}</div>
@@ -565,7 +565,7 @@ export default function PhantomMap() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <button onClick={() => setPlaying(!playing)} style={{ background: T.card, border: `1px solid ${T.border}`, color: T.text, padding: '4px 12px', fontSize: 8 }}>{playing ? 'PAUSE' : 'PLAY'}</button>
                         <input type="range" min={0} max={maxDay} value={currentDay} step={0.1} onChange={e => setCurrentDay(Number(e.target.value))} style={{ flex: 1, accentColor: rc }} />
-                        <span style={{ fontSize: 10, color: rc, minWidth: 40 }}>D{currentDay.toFixed(1)}</span>
+                        <span style={{ fontSize: 10, color: rc, minWidth: 40 }}>D{(currentDay ?? 0).toFixed(1)}</span>
                         <div style={{ display: 'flex', gap: 4 }}>
                             {(['7D', '14D', '30D', '12W', '6M', '1Y'] as TimeWindow[]).map(w => (
                                 <button key={w} onClick={() => setTimeWindow(w)} style={{ background: timeWindow === w ? rc : 'none', color: timeWindow === w ? T.bg : T.sub, border: 'none', padding: '2px 6px', fontSize: 7, cursor: 'pointer' }}>{w}</button>

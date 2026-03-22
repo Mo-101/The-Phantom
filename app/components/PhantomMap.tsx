@@ -17,6 +17,20 @@ const T = {
 };
 const RISK: Record<string, string> = { CRITICAL: '#FF0066', HIGH: '#FF453A', MEDIUM: '#F5A623', LOW: '#00E87A' };
 const SIGTYPE: Record<string, string> = { HEALTH: '#FF6B8A', DISPLACEMENT: '#3DD9C4', CONFLICT: '#FF453A', ENTROPY: '#F5A623', LINGUISTIC: '#8B7CF8' };
+// Source colors per cascade--intelligence-emergence-visualization.md + ingest scripts
+const SOURCE_COLOR: Record<string, string> = {
+    'ACLED': '#EF4444',        // conflict / fire+air
+    'IOM-DTM': '#3B82F6',      // displacement / water
+    'DHIS2': '#22C55E',        // disease
+    'AFRO-SENTINEL': '#EAB308',// sentinel
+    'entropy_spike': '#F97316',
+    'phantom_poe': '#F59E0B',
+};
+// HMM state colors per cascade spec
+const HMM_COLOR: Record<string, string> = {
+    dormant: '#6B7280', probing: '#60A5FA',
+    active_crossing: '#FB923C', surge: '#EF4444', dissipating: '#A78BFA',
+};
 const PREC_LABEL: Record<string, string> = { PRECISE: 'PRECISE·GPS', SETTLEMENT: 'SETTLEMENT', DISTRICT: 'DISTRICT', INFERRED: 'INFERRED' };
 const PREC_COLOR: Record<string, string> = { PRECISE: '#00E87A', SETTLEMENT: '#3DD9C4', DISTRICT: '#F5A623', INFERRED: '#3A3F5C' };
 
@@ -597,6 +611,10 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
     const googleTilesetRef = useRef<CesiumType.Cesium3DTileset | null>(null);
     const roadOverlayLayerRef = useRef<CesiumType.ImageryLayer | null>(null);
     const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; title: string; subtitle: string; color: string; details?: { label: string; value: string }[] } | null>(null);
+    // Cascade data — fetched from /api/corridors/:id/cascade on corridor select
+    const [cascadeData, setCascadeData] = useState<any | null>(null);
+    const [showCascadeLayer, setShowCascadeLayer] = useState(true);
+    const cascadeEntityIdsRef = useRef<string[]>([]);
 
     // Sync corridors if parent re-fetches and passes updated props
     useEffect(() => {
@@ -624,6 +642,98 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
         setPlaying(false); 
         setTab('evidence'); 
     }, [selId, corridor]);
+
+    // Fetch cascade data (source-coded signal layer) from /api/corridors/:id/cascade
+    // — feeds ACLED/DTM/DHIS2 signal markers onto the Cesium terrain per cascade_spec.ts
+    useEffect(() => {
+        if (!corridor) return;
+        setCascadeData(null);
+        fetch(`/api/corridors/${corridor.id}/cascade`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data) setCascadeData(data); })
+            .catch(() => {});
+    }, [corridor?.id]);
+
+    // Render ACLED / IOM-DTM / DHIS2 signal markers from cascade API onto the terrain.
+    // Colors from cascade--intelligence-emergence-visualization.md:
+    //   ACLED=#EF4444  IOM-DTM=#3B82F6  DHIS2=#22C55E  Sentinel=#EAB308
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+
+        // Remove previous cascade markers
+        for (const id of cascadeEntityIdsRef.current) viewer.entities.removeById(id);
+        cascadeEntityIdsRef.current = [];
+
+        if (!showCascadeLayer || !cascadeData) return;
+
+        // Render live_signal_layer — all signals near this corridor from normalized_signals
+        const liveLayer: any[] = cascadeData.live_signal_layer ?? [];
+        for (const sig of liveLayer) {
+            if (!sig.lat || !sig.lng) continue;
+            const color = SOURCE_COLOR[sig.source] ?? T.sub;
+            const eid = `cascade-live-${sig.id}`;
+            viewer.entities.add({
+                id: eid,
+                position: Cesium.Cartesian3.fromDegrees(sig.lng, sig.lat),
+                point: {
+                    pixelSize: Math.max(5, (sig.magnitude ?? 0.5) * 12),
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.85),
+                    outlineColor: Cesium.Color.fromCssColorString(T.bg),
+                    outlineWidth: 1.5,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                },
+                label: {
+                    text: sig.source,
+                    font: '8px "IBM Plex Mono",monospace',
+                    fillColor: Cesium.Color.fromCssColorString(color),
+                    outlineColor: Cesium.Color.fromCssColorString(T.bg),
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -10),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scale: 0.8,
+                    show: false, // Only show on hover — controlled by mouse handler
+                },
+            });
+            cascadeEntityIdsRef.current.push(eid);
+        }
+
+        // Render phantom POE detection location from latest frame — gold flash marker
+        const lastPhantom = [...(cascadeData.frames ?? [])].reverse().find((f: any) => f.phantom_poe_detected);
+        if (lastPhantom?.phantom_poe_location) {
+            const p = lastPhantom.phantom_poe_location;
+            const phId = `cascade-phantom-poe-${cascadeData.corridor_id}`;
+            viewer.entities.add({
+                id: phId,
+                position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+                point: {
+                    pixelSize: 18,
+                    color: Cesium.Color.fromCssColorString(SOURCE_COLOR.phantom_poe),
+                    outlineColor: Cesium.Color.fromCssColorString('#000'),
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                },
+                label: {
+                    text: `PHANTOM POE\n${p.name}`,
+                    font: '9px "IBM Plex Mono",monospace',
+                    fillColor: Cesium.Color.fromCssColorString(SOURCE_COLOR.phantom_poe),
+                    outlineColor: Cesium.Color.fromCssColorString(T.bg),
+                    outlineWidth: 3,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -22),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scale: 0.9,
+                },
+            });
+            cascadeEntityIdsRef.current.push(phId);
+        }
+    }, [cesiumReady, cascadeData, showCascadeLayer]);
 
     useEffect(() => {
         if (!mapDivRef.current) return;
@@ -964,6 +1074,20 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4 }}>
                                     GAP ANALYSIS <input type="checkbox" checked={showGapAnalysis} onChange={e => setShowGapAnalysis(e.target.checked)} />
                                 </label>
+                                {/* Cascade source signal layer — ACLED/DTM/DHIS2 markers on terrain */}
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4, color: showCascadeLayer ? SOURCE_COLOR['AFRO-SENTINEL'] : T.sub }}>
+                                    CASCADE SIGNALS <input type="checkbox" checked={showCascadeLayer} onChange={e => setShowCascadeLayer(e.target.checked)} />
+                                </label>
+                                {showCascadeLayer && cascadeData && (
+                                    <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        {Object.entries(SOURCE_COLOR).filter(([k]) => !['entropy_spike','phantom_poe'].includes(k)).map(([src, col]) => (
+                                            <div key={src} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                                                <span style={{ fontSize: 7, color: T.muted }}>{src}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 <div style={{ height: 1, background: T.border, margin: '6px 0' }} />
                                 <div style={{ fontSize: 7, letterSpacing: 1.5, color: T.muted, marginBottom: 6 }}>TERRAIN</div>
                                 {/* Photorealistic 3D Tiles — viewer-4AbUS.js */}

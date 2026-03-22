@@ -4,8 +4,9 @@ const ServerEnvSchema = z.object({
   // AI (optional — only required for AI chat features, not map/corridor)
   GEMINI_API_KEY: z.string().optional(),
 
-  // Database
-  NEON_DATABASE_URL: z.string().optional(), // was DATABASE_URL
+  // Database — Neon injects DATABASE_URL; NEON_DATABASE_URL is a legacy alias
+  DATABASE_URL: z.string().optional(),
+  NEON_DATABASE_URL: z.string().optional(),
 
   // Neo4j
   NEO4J_URI: z.string().optional(),
@@ -62,7 +63,7 @@ export function serverEnv(): ServerEnv {
 type EngineMode = 'ingest' | 'graph' | 'trinity' | 'client';
 
 const MODE_KEYS: Record<EngineMode, (keyof ServerEnv)[]> = {
-  ingest: ['NEON_DATABASE_URL', 'SUPABASE_URL', 'AFRO_SENTINEL_SERVICE_KEY'],
+  ingest: ['DATABASE_URL', 'SUPABASE_URL', 'AFRO_SENTINEL_SERVICE_KEY'],
   graph: ['NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD'],
   trinity: ['OLLAMA_BASE_URL', 'GEMINI_API_KEY'],
   client: [],

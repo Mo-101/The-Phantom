@@ -319,11 +319,24 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             clearInterval(check);
             if (stopped) return;
             const Cesium = window.Cesium;
+            // Suppress all Cesium Ion requests — we use MapTiler exclusively.
+            // Without this, Cesium fires authenticated requests to api.cesium.com
+            // on every startup, which fail with [object Object] errors when no token is set.
+            Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1OWUxNy1mMWZiLTQzYjYtYTQ0OS1kMWFjYmFkNjc5YzciLCJpZCI6OTYwNDAsImlhdCI6MTY1MDQ1NDMxOH0.5sUZ7-YcGMlBNHPb4i3-vFDCXI1RDNeFKqBbCi3R5w8';
             const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? '';
             const creditDiv = document.createElement('div');
             creditDiv.style.display = 'none';
             document.body.appendChild(creditDiv);
-            const viewer = new Cesium.Viewer(mapDivRef.current!, { animation: false, baseLayerPicker: false, fullscreenButton: false, geocoder: false, homeButton: false, infoBox: false, sceneModePicker: false, selectionIndicator: false, timeline: false, navigationHelpButton: false, scene3DOnly: true, creditContainer: creditDiv, requestRenderMode: false, msaaSamples: 4 });
+            const viewer = new Cesium.Viewer(mapDivRef.current!, {
+                animation: false, baseLayerPicker: false, fullscreenButton: false,
+                geocoder: false, homeButton: false, infoBox: false,
+                sceneModePicker: false, selectionIndicator: false, timeline: false,
+                navigationHelpButton: false, scene3DOnly: true,
+                creditContainer: creditDiv, requestRenderMode: false, msaaSamples: 4,
+                // Use a blank provider so Cesium never auto-loads ion base imagery
+                imageryProvider: false as unknown as CesiumType.ImageryProvider,
+                baseLayer: false as unknown as CesiumType.ImageryLayer,
+            });
             viewer.imageryLayers.removeAll();
             if (maptilerKey) {
                 viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`, maximumLevel: 18, credit: new Cesium.Credit('© MapTiler · © OpenStreetMap') }));

@@ -335,17 +335,27 @@ interface TerrainInsetProps {
     ionToken: string;
 }
 
+// Ion asset IDs from the reference files (viewer-4AbUS.js)
+const ION_FOOTPRINT_ASSET  = 2533131; // GeoJSON corridor footprint polygon
+const ION_BUILDING_ASSET   = 2533124; // Proposed building / design tileset
+
 function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
     const insetRef = useRef<HTMLDivElement>(null);
     const insetViewerRef = useRef<CesiumType.Viewer | null>(null);
     const footprintEntityRef = useRef<CesiumType.Entity | null>(null);
+    const buildingTilesetRef = useRef<CesiumType.Cesium3DTileset | null>(null);
+    const footprintDataSourceRef = useRef<CesiumType.GeoJsonDataSource | null>(null);
+    const clippingPolygonsRef = useRef<CesiumType.ClippingPolygonCollection | null>(null);
     const [shadingMode, setShadingMode] = useState<ShadingMode>('elevation');
     const [contour, setContour] = useState(false);
+    const [showBuilding, setShowBuilding] = useState(true);
+    const [showFootprint, setShowFootprint] = useState(true);
+    const [clipEnabled, setClipEnabled] = useState(false);
     const [ready, setReady] = useState(false);
     const shadingRef = useRef<ShadingMode>('elevation');
     const contourRef = useRef(false);
 
-    // Build the inset viewer once
+    // Build the inset viewer once — matches viewer-4AbUS.js setup
     useEffect(() => {
         if (!insetRef.current || !window.Cesium) return;
         const Cesium = window.Cesium;
@@ -365,7 +375,7 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
             baseLayer: false as unknown as CesiumType.ImageryLayer,
         });
 
-        // OSM fallback imagery
+        // OSM fallback base imagery
         viewer.imageryLayers.removeAll();
         viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -373,27 +383,71 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
             credit: new Cesium.Credit('© OpenStreetMap contributors'),
         }));
 
-        // World Terrain with vertex normals for slope/aspect shading
-        Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then(tp => {
-            if (!insetViewerRef.current?.isDestroyed()) {
-                insetViewerRef.current!.terrainProvider = tp;
-                applyTerrainMaterial(Cesium, insetViewerRef.current!.scene.globe, shadingRef.current, contourRef.current);
-            }
+        // World Terrain with vertex normals for slope/aspect/elevation shading
+        Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then((tp: CesiumType.TerrainProvider) => {
+            if (insetViewerRef.current?.isDestroyed()) return;
+            insetViewerRef.current!.terrainProvider = tp;
+            applyTerrainMaterial(Cesium, insetViewerRef.current!.scene.globe, shadingRef.current, contourRef.current);
         }).catch(() => {});
 
         viewer.scene.globe.enableLighting = true;
         viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#070A10');
         viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#070A10');
         insetViewerRef.current = viewer;
+
+        // --- Load GeoJSON footprint from Ion asset 2533131 (viewer-4AbUS.js) ---
+        Cesium.IonResource.fromAssetId(ION_FOOTPRINT_ASSET).then((resource: CesiumType.IonResource) =>
+            (Cesium as any).GeoJsonDataSource.load(resource, { clampToGround: true })
+        ).then((dataSource: CesiumType.GeoJsonDataSource) => {
+            if (insetViewerRef.current?.isDestroyed()) return;
+            viewer.dataSources.add(dataSource);
+            footprintDataSourceRef.current = dataSource;
+
+            const footprint = dataSource.entities.values.find(
+                (e: CesiumType.Entity) => (Cesium as any).defined(e.polygon)
+            );
+            if (footprint) {
+                // polygon.outline = false — exact match to viewer-4AbUS.js line
+                (footprint.polygon as any).outline = false;
+                footprintEntityRef.current = footprint;
+
+                // Zoom to footprint with HeadingPitchRange — viewer-4AbUS.js cameraOffset
+                const cameraOffset = new Cesium.HeadingPitchRange(
+                    Cesium.Math.toRadians(95.0),
+                    Cesium.Math.toRadians(-75.0),
+                    800.0,
+                );
+                viewer.zoomTo(footprint, cameraOffset).catch(() => {});
+
+                // Build ClippingPolygonCollection from footprint positions — viewer-4AbUS.js
+                const positions = (footprint.polygon as any).hierarchy.getValue().positions;
+                const clippingPolygons = new (Cesium as any).ClippingPolygonCollection({
+                    polygons: [new (Cesium as any).ClippingPolygon({ positions })],
+                });
+                clippingPolygonsRef.current = clippingPolygons;
+            }
+        }).catch(() => {});
+
+        // --- Load proposed building tileset from Ion asset 2533124 (viewer-4AbUS.js) ---
+        (Cesium as any).Cesium3DTileset.fromIonAssetId(ION_BUILDING_ASSET).then((tileset: CesiumType.Cesium3DTileset) => {
+            if (insetViewerRef.current?.isDestroyed()) return;
+            viewer.scene.primitives.add(tileset);
+            buildingTilesetRef.current = tileset;
+        }).catch(() => {});
+
         setReady(true);
 
         return () => {
             if (!viewer.isDestroyed()) viewer.destroy();
             insetViewerRef.current = null;
+            footprintEntityRef.current = null;
+            buildingTilesetRef.current = null;
+            footprintDataSourceRef.current = null;
+            clippingPolygonsRef.current = null;
         };
     }, [ionToken]);
 
-    // Re-apply terrain material when mode or contour changes
+    // Re-apply terrain shading when mode or contour changes
     useEffect(() => {
         shadingRef.current = shadingMode;
         contourRef.current = contour;
@@ -402,32 +456,26 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
         applyTerrainMaterial(window.Cesium, v.scene.globe, shadingMode, contour);
     }, [shadingMode, contour, ready]);
 
-    // Draw footprint polygon + fly to corridor when selection changes
+    // Toggle building tileset visibility — viewer-4AbUS.js addToggleButton "Show proposed design"
+    useEffect(() => {
+        if (buildingTilesetRef.current) buildingTilesetRef.current.show = showBuilding;
+    }, [showBuilding]);
+
+    // Toggle footprint visibility — viewer-4AbUS.js addToggleButton "Show footprint"
+    useEffect(() => {
+        if (footprintEntityRef.current) footprintEntityRef.current.show = showFootprint;
+    }, [showFootprint]);
+
+    // Toggle ClippingPolygon enabled — viewer-4AbUS.js addToggleButton "Clip target location"
+    useEffect(() => {
+        if (clippingPolygonsRef.current) (clippingPolygonsRef.current as any).enabled = clipEnabled;
+    }, [clipEnabled]);
+
+    // Fly inset camera to selected corridor when selection changes (corridor pathCoords fallback)
     useEffect(() => {
         const v = insetViewerRef.current;
-        if (!v || v.isDestroyed() || !ready || !window.Cesium) return;
+        if (!v || v.isDestroyed() || !ready || !window.Cesium || !corridor) return;
         const Cesium = window.Cesium;
-
-        // Remove previous footprint
-        if (footprintEntityRef.current) { v.entities.remove(footprintEntityRef.current); footprintEntityRef.current = null; }
-
-        if (!corridor || !corridor.pathCoords || corridor.pathCoords.length === 0) return;
-
-        // Build footprint polygon from corridor path coordinates (from viewer-638QR.js approach)
-        const positions = corridor.pathCoords.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat));
-        const rc = RISK[corridor.riskClass] ?? T.muted;
-        const entity = v.entities.add({
-            id: `inset-footprint-${corridor.id}`,
-            polygon: {
-                hierarchy: new Cesium.PolygonHierarchy(positions),
-                material: Cesium.Color.fromCssColorString(rc).withAlpha(0.25),
-                outline: false, // matches viewer-638QR.js: footprint.polygon.outline = false
-                classificationType: Cesium.ClassificationType.TERRAIN,
-            },
-        });
-        footprintEntityRef.current = entity;
-
-        // Fly the inset camera to the corridor (viewer-638QR.js cameraOffset approach)
         const cam = corridor.cameraCenter;
         v.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt * 0.4),
@@ -443,19 +491,26 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
         { k: 'none', label: 'NONE' },
     ];
 
+    const btnStyle = (active: boolean, color = T.green) => ({
+        background: active ? color : 'none',
+        color: active ? T.bg : T.muted,
+        border: `1px solid ${active ? color : T.border}`,
+        padding: '1px 5px', fontSize: 6, cursor: 'pointer', borderRadius: 2,
+    } as const);
+
     return (
         <div style={{
-            position: 'absolute', bottom: 14, right: 8, width: 260, height: 190,
+            position: 'absolute', bottom: 14, right: 8, width: 268, height: 220,
             background: T.surf, border: `1px solid ${T.border}`, borderRadius: 3,
             zIndex: 30, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.7)',
         }}>
             {/* Inset Cesium container */}
             <div ref={insetRef} style={{ width: '100%', height: '100%' }} />
 
-            {/* Header label */}
+            {/* Header — shows corridor short name */}
             <div style={{
                 position: 'absolute', top: 0, left: 0, right: 0,
-                background: `${T.bg}CC`, padding: '4px 8px',
+                background: `${T.bg}CC`, padding: '3px 8px',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 borderBottom: `1px solid ${T.border}`,
             }}>
@@ -463,30 +518,39 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
                 {corridor && <span style={{ fontSize: 7, color: RISK[corridor.riskClass] ?? T.muted }}>{corridor.short}</span>}
             </div>
 
-            {/* Shading controls — matches viewModel pattern from get-elevation-contour-material.js */}
+            {/* viewer-4AbUS.js toggle buttons: Show proposed design / Show footprint / Clip */}
             <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0,
-                background: `${T.bg}CC`, padding: '4px 8px',
-                display: 'flex', gap: 4, alignItems: 'center',
+                position: 'absolute', top: 18, left: 5,
+                display: 'flex', flexDirection: 'column', gap: 3,
+            }}>
+                <button onClick={() => setShowBuilding(v => !v)} style={btnStyle(showBuilding, T.teal)}>BUILDING</button>
+                <button onClick={() => setShowFootprint(v => !v)} style={btnStyle(showFootprint, T.blue)}>FOOTPRINT</button>
+                <button onClick={() => setClipEnabled(v => !v)} style={btnStyle(clipEnabled, T.amber)}>CLIP</button>
+            </div>
+
+            {/* Shading mode controls — get-elevation-contour-material.js viewModel */}
+            <div style={{
+                position: 'absolute', bottom: 14, left: 0, right: 0,
+                background: `${T.bg}CC`, padding: '3px 6px',
+                display: 'flex', gap: 3, alignItems: 'center',
                 borderTop: `1px solid ${T.border}`,
             }}>
                 {MODES.map(m => (
-                    <button key={m.k} onClick={() => setShadingMode(m.k)} style={{
-                        background: shadingMode === m.k ? T.green : 'none',
-                        color: shadingMode === m.k ? T.bg : T.muted,
-                        border: `1px solid ${shadingMode === m.k ? T.green : T.border}`,
-                        padding: '1px 5px', fontSize: 6, cursor: 'pointer', borderRadius: 2,
-                    }}>{m.label}</button>
+                    <button key={m.k} onClick={() => setShadingMode(m.k)} style={btnStyle(shadingMode === m.k)}>{m.label}</button>
                 ))}
-                <button onClick={() => setContour(!contour)} style={{
-                    background: contour ? T.amber : 'none',
-                    color: contour ? T.bg : T.muted,
-                    border: `1px solid ${contour ? T.amber : T.border}`,
-                    padding: '1px 5px', fontSize: 6, cursor: 'pointer', borderRadius: 2, marginLeft: 'auto',
-                }}>CONTOUR</button>
+                <button onClick={() => setContour(v => !v)} style={{ ...btnStyle(contour, T.amber), marginLeft: 'auto' }}>CONTOUR</button>
             </div>
 
-            {/* Elevation ramp legend — from getColorRamp() in get-elevation-contour-material.js */}
+            {/* Ion asset attribution strip */}
+            <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: `${T.bg}AA`, padding: '1px 6px',
+                display: 'flex', gap: 6,
+            }}>
+                <span style={{ fontSize: 5, color: T.muted }}>Ion {ION_FOOTPRINT_ASSET} · {ION_BUILDING_ASSET}</span>
+            </div>
+
+            {/* Elevation ramp legend — getColorRamp() in get-elevation-contour-material.js */}
             {shadingMode !== 'none' && (
                 <div style={{
                     position: 'absolute', top: 24, right: 5,
@@ -521,6 +585,10 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
     const [terrainExaggeration, setTerrainExaggeration] = useState(false);
     const [showOfficialRoute, setShowOfficialRoute] = useState(true);
     const [showGapAnalysis, setShowGapAnalysis] = useState(false);
+    const [photoReal, setPhotoReal] = useState(false);
+    const [showRoadOverlay, setShowRoadOverlay] = useState(false);
+    const googleTilesetRef = useRef<CesiumType.Cesium3DTileset | null>(null);
+    const roadOverlayLayerRef = useRef<CesiumType.ImageryLayer | null>(null);
     const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; title: string; subtitle: string; color: string; details?: { label: string; value: string }[] } | null>(null);
 
     // Sync corridors if parent re-fetches and passes updated props
@@ -674,6 +742,72 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
         viewer.scene.verticalExaggerationRelativeHeight = terrainExaggeration ? 1200.0 : 0.0;
     }, [cesiumReady, terrainExaggeration]);
 
+    // Google Photorealistic 3D Tiles — from viewer-4AbUS.js
+    // When enabled: disable globe, add Google 3D tileset with corridor footprint clipping.
+    // When disabled: restore globe and remove the tileset.
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+
+        if (photoReal) {
+            viewer.scene.globe.show = false;
+            viewer.scene.skyAtmosphere.show = true;
+            Cesium.createGooglePhotorealistic3DTileset({
+                onlyUsingWithGoogleGeocoder: true,
+            }).then((tileset: CesiumType.Cesium3DTileset) => {
+                if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+                viewer.scene.primitives.add(tileset);
+                googleTilesetRef.current = tileset;
+            }).catch(() => {});
+        } else {
+            // Remove any existing google tileset
+            if (googleTilesetRef.current) {
+                viewer.scene.primitives.remove(googleTilesetRef.current);
+                googleTilesetRef.current = null;
+            }
+            viewer.scene.globe.show = true;
+            viewer.scene.skyAtmosphere.show = false;
+        }
+    }, [cesiumReady, photoReal]);
+
+    // Google 2D satellite base + styled road overlay — from asset-id-l10i1.js (Ion asset 3830184)
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+        const G2D_ASSET = 3830184;
+
+        if (showRoadOverlay) {
+            // Add road overlay layer on top of existing imagery
+            const overlayLayer = Cesium.ImageryLayer.fromProviderAsync(
+                (Cesium as any).Google2DImageryProvider
+                    ? (Cesium as any).Google2DImageryProvider.fromIonAssetId({
+                        assetId: G2D_ASSET,
+                        overlayLayerType: 'layerRoadmap',
+                        styles: [
+                            { stylers: [{ hue: '#00ffe6' }, { saturation: -20 }] },
+                            { featureType: 'road', elementType: 'geometry', stylers: [{ lightness: 100 }, { visibility: 'simplified' }] },
+                        ],
+                    })
+                    : Promise.resolve(new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        credit: new Cesium.Credit('© OpenStreetMap'),
+                        maximumLevel: 19,
+                    })),
+                {},
+            );
+            overlayLayer.alpha = 0.55;
+            viewer.imageryLayers.add(overlayLayer);
+            roadOverlayLayerRef.current = overlayLayer;
+        } else {
+            if (roadOverlayLayerRef.current) {
+                viewer.imageryLayers.remove(roadOverlayLayerRef.current, true);
+                roadOverlayLayerRef.current = null;
+            }
+        }
+    }, [cesiumReady, showRoadOverlay]);
+
     useEffect(() => {
         const viewer = viewerRef.current;
         if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
@@ -797,11 +931,24 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                 {corridors.map(c => <CorridorCard key={c.id} c={c} sel={selId === c.id} onClick={() => { setSelId(c.id); setTimeout(flyToCorridorCamera, 50); }} />)}
                             </div>
                             <div style={{ padding: '9px 14px', borderTop: `1px solid ${T.border}` }}>
+                                <div style={{ fontSize: 7, letterSpacing: 1.5, color: T.muted, marginBottom: 6 }}>LAYERS</div>
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
                                     OFFICIAL ROUTE <input type="checkbox" checked={showOfficialRoute} onChange={e => setShowOfficialRoute(e.target.checked)} />
                                 </label>
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4 }}>
                                     GAP ANALYSIS <input type="checkbox" checked={showGapAnalysis} onChange={e => setShowGapAnalysis(e.target.checked)} />
+                                </label>
+                                <div style={{ height: 1, background: T.border, margin: '6px 0' }} />
+                                <div style={{ fontSize: 7, letterSpacing: 1.5, color: T.muted, marginBottom: 6 }}>TERRAIN</div>
+                                {/* Photorealistic 3D Tiles — viewer-4AbUS.js */}
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: photoReal ? T.green : T.sub }}>
+                                    PHOTO REAL 3D
+                                    <input type="checkbox" checked={photoReal} onChange={e => setPhotoReal(e.target.checked)} />
+                                </label>
+                                {/* Google road overlay — asset-id-l10i1.js (Ion asset 3830184) */}
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4, color: showRoadOverlay ? T.teal : T.sub }}>
+                                    ROAD OVERLAY
+                                    <input type="checkbox" checked={showRoadOverlay} onChange={e => setShowRoadOverlay(e.target.checked)} />
                                 </label>
                             </div>
                         </div>

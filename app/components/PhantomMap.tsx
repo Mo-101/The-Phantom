@@ -339,11 +339,32 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             });
             viewer.imageryLayers.removeAll();
             if (maptilerKey) {
-                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`, maximumLevel: 18, credit: new Cesium.Credit('© MapTiler · © OpenStreetMap') }));
-                Cesium.CesiumTerrainProvider.fromUrl(new Cesium.Resource({ url: 'https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/', queryParameters: { key: maptilerKey } }), { requestVertexNormals: true }).then(tp => { if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp; }).catch(() => { });
+                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                    url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`,
+                    maximumLevel: 18,
+                    credit: new Cesium.Credit('© MapTiler · © OpenStreetMap'),
+                }));
+                Cesium.CesiumTerrainProvider.fromUrl(new Cesium.Resource({
+                    url: 'https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/',
+                    queryParameters: { key: maptilerKey },
+                }), { requestVertexNormals: true }).then(tp => {
+                    if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp;
+                }).catch(() => { });
+            } else {
+                // Fallback: OpenStreetMap tiles (no API key required) so the globe is
+                // never a plain black void when NEXT_PUBLIC_MAPTILER_KEY is not set.
+                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    maximumLevel: 19,
+                    credit: new Cesium.Credit('© OpenStreetMap contributors'),
+                }));
+                // Load Cesium World Terrain using the Ion token we already set above
+                Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then(tp => {
+                    if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp;
+                }).catch(() => { });
             }
-            viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(T.bg);
-            viewer.scene.backgroundColor = Cesium.Color.fromCssColorString(T.bg);
+            viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e1a');
+            viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0e1a');
             viewerRef.current = viewer;
             setCesiumReady(true);
 

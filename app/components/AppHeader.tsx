@@ -18,6 +18,20 @@ export default function AppHeader() {
         const unsub = onAuthStateChanged(auth, (u) => {
             setUser(u);
             setReady(true);
+            // Sync Firebase user session into Neon for audit/corridor scoping
+            if (u) {
+                fetch('/api/firebase/user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: u.uid,
+                        email: u.email,
+                        displayName: u.displayName,
+                        provider: u.providerData[0]?.providerId ?? 'google.com',
+                        metadata: { photoURL: u.photoURL },
+                    }),
+                }).catch(() => {});
+            }
         });
         return unsub;
     }, []);

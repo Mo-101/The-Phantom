@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
+import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
+import { ChatHistoryService, FirebaseUserService } from '@/src/services/firebase.service';
 
 interface ChatMessage {
     role: 'user' | 'assistant' | 'error';
@@ -25,7 +27,35 @@ export default function ChatSidebar() {
     const [loading, setLoading] = useState(false);
     const [isThinkingMode, setIsThinkingMode] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
+    const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+    const [historyLoaded, setHistoryLoaded] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Subscribe to Firebase auth state and load chat history on sign-in
+    useEffect(() => {
+        const unsub = onAuthStateChanged(auth, async (user) => {
+            setFirebaseUser(user);
+            if (user && !historyLoaded) {
+                try {
+                    // Ensure user profile exists
+                    await FirebaseUserService.createOrUpdateProfile(user);
+                    // Load most recent 30 turns
+                    const turns = await ChatHistoryService.getChatHistory(user.uid, 30);
+                    const loaded: ChatMessage[] = turns.map(t => ({
+                        role: t.role === 'model' ? 'assistant' : t.role as 'user' | 'error',
+                        content: t.message,
+                        timestamp: t.timestamp?.toDate?.() ?? new Date(),
+                        thinking: t.isThinking ? t.message : undefined,
+                    }));
+                    if (loaded.length > 0) setMessages(loaded);
+                    setHistoryLoaded(true);
+                } catch (err) {
+                    console.error('Firebase history load failed:', err);
+                }
+            }
+        });
+        return unsub;
+    }, [historyLoaded]);
 
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -41,6 +71,12 @@ export default function ChatSidebar() {
         setInput('');
         setLoading(true);
 
+        // Persist user turn to Firebase (fire-and-forget)
+        if (firebaseUser) {
+            ChatHistoryService.saveChatTurn(firebaseUser.uid, 'user', userContent).catch(() => {});
+            FirebaseUserService.updateLastActive(firebaseUser.uid).catch(() => {});
+        }
+
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST',
@@ -48,7 +84,7 @@ export default function ChatSidebar() {
                 body: JSON.stringify({
                     message: userContent,
                     history: messages.filter(m => m.role !== 'error').map(m => ({
-                        role: m.role,
+                        role: m.role === 'assistant' ? 'model' : m.role,
                         content: m.content,
                     })),
                     thinkingMode: isThinkingMode,
@@ -70,15 +106,31 @@ export default function ChatSidebar() {
                     timestamp: new Date(),
                 },
             ]);
+
+            // Persist model turn to Firebase
+            if (firebaseUser) {
+                ChatHistoryService.saveChatTurn(
+                    firebaseUser.uid,
+                    'model',
+                    data.response,
+                    isThinkingMode,
+                    { modelUsed: isThinkingMode ? 'gemini-pro-thinking' : 'gemini-flash' }
+                ).catch(() => {});
+            }
         } catch (err) {
+            const errMsg = `⚠️ ${err instanceof Error ? err.message : 'Unknown error'}`;
             setMessages(prev => [
                 ...prev,
                 {
                     role: 'error',
-                    content: `⚠️ ${err instanceof Error ? err.message : 'Unknown error'}`,
+                    content: errMsg,
                     timestamp: new Date(),
                 },
             ]);
+            // Persist error turn to Firebase
+            if (firebaseUser) {
+                ChatHistoryService.saveChatTurn(firebaseUser.uid, 'error', errMsg).catch(() => {});
+            }
         } finally {
             setLoading(false);
             setInput(EXAMPLE_PROMPTS[Math.floor(Math.random() * EXAMPLE_PROMPTS.length)] ?? '');

@@ -414,7 +414,7 @@ export default function PhantomMap() {
             const corRc = RISK[cor.riskClass] ?? T.muted;
             const isActive = cor.activated;
             const isSel = cor.id === selId;
-            if (!cor.pathCoords || cor.pathCoords.length === 0) continue;
+            if (!cor.pathCoords || !Array.isArray(cor.pathCoords) || cor.pathCoords.length === 0) continue;
             const positions = Cesium.Cartesian3.fromDegreesArray(cor.pathCoords.flatMap(p => [p.lng, p.lat]));
             const startPos = cor.pathCoords[0]!;
             const endPos = cor.pathCoords[cor.pathCoords.length - 1]!;
@@ -428,7 +428,7 @@ export default function PhantomMap() {
                 entityIdsRef.current.push(formalId);
             }
             const ribbonId = `${cor.id}-track-ribbon`;
-            viewer.entities.add({ id: ribbonId, properties: { kind: 'corridor', corridorId: cor.id }, polyline: { positions, clampToGround: true, width: (isSel ? 28 : 16) * cor.score, material: Cesium.Color.fromCssColorString(corRc).withAlpha(isSel ? 0.13 : 0.06) } });
+            viewer.entities.add({ id: ribbonId, properties: { kind: 'corridor', corridorId: cor.id }, polyline: { positions, clampToGround: true, width: (isSel ? 28 : 16) * (cor.score ?? 0), material: Cesium.Color.fromCssColorString(corRc).withAlpha(isSel ? 0.13 : 0.06) } });
             entityIdsRef.current.push(ribbonId);
 
             const flowId = `${cor.id}-track-flow`;
@@ -467,11 +467,11 @@ export default function PhantomMap() {
                 }
             }
         }
-    }, [cesiumReady, selId, currentDay, showGapAnalysis, showOfficialRoute]);
+    }, [cesiumReady, selId, currentDay, showGapAnalysis, showOfficialRoute, corridors]);
 
     const flyToCorridorCamera = useCallback(() => {
         const viewer = viewerRef.current;
-        if (!viewer || viewer.isDestroyed() || !window.Cesium || !corridor) return;
+        if (!viewer || viewer.isDestroyed() || !window.Cesium || !corridor || !corridor.cameraCenter) return;
         const Cesium = window.Cesium; const cam = corridor.cameraCenter;
         viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt), orientation: { heading: Cesium.Math.toRadians(cam.heading), pitch: Cesium.Math.toRadians(-50), roll: 0 }, duration: 1.8, easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT });
     }, [corridor]);

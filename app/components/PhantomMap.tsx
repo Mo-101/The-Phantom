@@ -414,6 +414,7 @@ export default function PhantomMap() {
             const corRc = RISK[cor.riskClass] ?? T.muted;
             const isActive = cor.activated;
             const isSel = cor.id === selId;
+            if (!cor.pathCoords || cor.pathCoords.length === 0) continue;
             const positions = Cesium.Cartesian3.fromDegreesArray(cor.pathCoords.flatMap(p => [p.lng, p.lat]));
             const startPos = cor.pathCoords[0]!;
             const endPos = cor.pathCoords[cor.pathCoords.length - 1]!;
@@ -541,10 +542,10 @@ export default function PhantomMap() {
                     </div>
 
                     <div style={{ width: 285, flexShrink: 0, background: T.surf, borderLeft: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>
-                        {corridor && corridor.score != null && (
+                        {corridor && (
                             <div style={{ padding: '10px 13px', borderBottom: `1px solid ${T.border}` }}>
                                 <div style={{ fontSize: 13, color: rc, letterSpacing: 2 }}>{corridor.id}</div>
-                                <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{corridor.score.toFixed(4)}</div>
+                                <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{(corridor.score ?? 0).toFixed(4)}</div>
                             </div>
                         )}
                         <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}` }}>

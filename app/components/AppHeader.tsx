@@ -63,7 +63,13 @@ export default function AppHeader() {
                 </div>
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
+                <a
+                    href="/analytics"
+                    className="font-mono text-xs uppercase tracking-widest text-green-400/70 hover:text-green-400 border border-green-400/30 hover:border-green-400 px-3 py-1 transition"
+                >
+                    Analytics
+                </a>
                 {!ready ? null : user ? (
                     <div className="flex items-center gap-3 text-green-400 font-mono text-sm">
                         {user.photoURL && (

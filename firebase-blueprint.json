@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the Phantom POE Engine.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "email": { "type": "string", "description": "The user's email address." },
+        "photoURL": { "type": "string", "description": "The user's photo URL." },
+        "role": { "type": "string", "enum": ["admin", "client"], "description": "The user's role." }
+      },
+      "required": ["uid", "displayName", "email", "role"]
+    },
+    "ChatTurn": {
+      "title": "ChatTurn",
+      "description": "A single turn in a chat conversation.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The UID of the user who owns this chat." },
+        "role": { "type": "string", "enum": ["user", "model", "error"], "description": "The role of the message sender." },
+        "message": { "type": "string", "description": "The content of the message." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the message was sent." },
+        "isThinking": { "type": "boolean", "description": "Whether this was a thinking mode response." }
+      },
+      "required": ["uid", "role", "message", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data."
+    },
+    "/users/{userId}/chatHistory/{turnId}": {
+      "schema": "ChatTurn",
+      "description": "The user's chat history."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Phantom POE Engine",
+  "description": "Corridor discovery and border intelligence application that reconstructs probable informal cross-border movement pathways from real-world signals, terrain physics, and graph inference, then presents those pathways with auditable evidence, uncertainty, and live activation status",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "prompt": ""
+}

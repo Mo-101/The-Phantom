@@ -1,0 +1,579 @@
+'use client';
+
+/**
+ * ◉⟁⬡  MoStar Industries
+ * Phantom POE Engine — CesiumJS Globe + MapTiler Satellite Tiles
+ * Fixed: corridors as polyline tracks · full layout · all lint errors resolved
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type * as CesiumType from 'cesium';
+
+const T = {
+    bg: '#070A10', surf: '#0D1020', card: '#121626', border: '#1C2035',
+    green: '#00E87A', amber: '#F5A623', red: '#FF453A', pink: '#FF0066',
+    blue: '#009ADE', teal: '#3DD9C4', purple: '#8B7CF8',
+    text: '#D8DCF0', sub: '#828AB5', muted: '#3A3F5C', dim: '#1C2035',
+};
+const RISK: Record<string, string> = { CRITICAL: '#FF0066', HIGH: '#FF453A', MEDIUM: '#F5A623', LOW: '#00E87A' };
+const SIGTYPE: Record<string, string> = { HEALTH: '#FF6B8A', DISPLACEMENT: '#3DD9C4', CONFLICT: '#FF453A', ENTROPY: '#F5A623', LINGUISTIC: '#8B7CF8' };
+const PREC_LABEL: Record<string, string> = { PRECISE: 'PRECISE·GPS', SETTLEMENT: 'SETTLEMENT', DISTRICT: 'DISTRICT', INFERRED: 'INFERRED' };
+const PREC_COLOR: Record<string, string> = { PRECISE: '#00E87A', SETTLEMENT: '#3DD9C4', DISTRICT: '#F5A623', INFERRED: '#3A3F5C' };
+
+export type TimeWindow = '7D' | '14D' | '30D' | '12W' | '6M' | '1Y';
+export const getWindowDays = (w: TimeWindow): number => {
+    if (w === '7D') return 7;
+    if (w === '14D') return 14;
+    if (w === '30D') return 30;
+    if (w === '12W') return 84;
+    if (w === '6M') return 180;
+    return 365;
+};
+export const getWindowUnitLabel = (w: TimeWindow, d: number): string => {
+    if (w === '12W' || w === '6M') return `W${Math.floor(d / 7) + 1}`;
+    if (w === '1Y') return `M${Math.floor(d / 30) + 1}`;
+    return `D${Math.floor(d)}`;
+};
+
+interface CorridorNode { name: string; lat: number; lng: number; alt: number; type: 'start' | 'end' | 'border' | 'phantom'; cc: string; km: number; prec: 'PRECISE' | 'SETTLEMENT' | 'DISTRICT' | 'INFERRED'; }
+interface EvidenceAtom { id: string; day: number; km: number; type: string; tag: string; loc: string; cc: string; score: number; source: string; prec: string; sourceId: string; lat: number; lng: number; alt: number; }
+interface SoulScore { key: string; sym: string; s: string; name: string; w: number; desc: string; value: number; }
+interface Corridor { id: string; short: string; region: string; score: number; riskClass: string; activated: boolean; startNode: string; endNode: string; startCC: string; endCC: string; mode: string; velocity: number; totalKm: number; seasonal: boolean; canoe: boolean; detour: boolean; firstDetected: string; coverage: string; nearestFormal: string; gapZone: boolean; cameraCenter: { lat: number; lng: number; alt: number; tilt: number; heading: number }; pathCoords: Array<{ lat: number; lng: number; alt: number }>; nodes: CorridorNode[]; souls: SoulScore[]; evidence: EvidenceAtom[]; }
+
+const RUN_ID = 'RUN-20260314-X7Q2';
+
+declare global { interface Window { Cesium: typeof CesiumType; CESIUM_BASE_URL: string; } }
+
+function Dot({ active, color }: { active: boolean; color: string }) {
+    return <span style={{ width: 5, height: 5, borderRadius: '50%', background: active ? color : T.muted, display: 'inline-block', boxShadow: active ? `0 0 6px ${color}` : 'none', animation: active ? 'poe-dot 1.4s ease-in-out infinite' : 'none', flexShrink: 0 }} />;
+}
+function Bar({ value, color, height = 3 }: { value: number; color: string; height?: number }) {
+    return <div style={{ flex: 1, height, background: T.dim, borderRadius: 2, overflow: 'hidden' }}><div style={{ height: '100%', width: `${value * 100}%`, background: color, borderRadius: 2 }} /></div>;
+}
+
+function CorridorCard({ c, sel, onClick }: { c: Corridor; sel: boolean; onClick: () => void }) {
+    const rc = RISK[c.riskClass] ?? T.muted;
+    return (
+        <div onClick={onClick} style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}`, borderLeft: `4px solid ${sel ? rc : 'transparent'}`, background: sel ? T.card : 'transparent', cursor: 'pointer', transition: 'background .12s' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 10, letterSpacing: .5, color: sel ? T.text : T.sub }}>{c.short}</span>
+                <span style={{ fontSize: 8, padding: '1px 5px', background: `${rc}18`, color: rc, borderRadius: 2 }}>{c.riskClass}</span>
+            </div>
+            <div style={{ fontSize: 9, color: T.muted, marginBottom: 6 }}>{c.startNode} → {c.endNode}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 5 }}>
+                <Bar value={c.score} color={rc} height={3} />
+                <span style={{ fontSize: 12, color: rc, fontWeight: 600, minWidth: 38 }}>{c.score.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 8, color: T.muted, alignItems: 'center' }}>
+                <span style={{ display: 'flex', gap: 4, alignItems: 'center', color: c.activated ? T.green : T.muted }}>
+                    <Dot active={c.activated} color={T.green} />{c.activated ? 'ACTIVE' : 'DORMANT'}
+                </span>
+                <span>{c.mode} · {c.velocity}km/d</span>
+                {c.gapZone && <span style={{ color: T.amber, fontWeight: 600 }}>GAP</span>}
+            </div>
+        </div>
+    );
+}
+
+function EvidenceTab({ corridor, currentDay }: { corridor: Corridor; currentDay: number }) {
+    if (!corridor) return <div style={{ padding: 16, fontSize: 10, color: T.muted }}>NO CORRIDOR SELECTED</div>;
+    return (
+        <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 12 }}>SIGNAL CHAIN · {corridor.evidence.filter(e => e.day <= currentDay).length}/{corridor.evidence.length} ATOMS</div>
+            {corridor.evidence.map(a => {
+                const tc = SIGTYPE[a.type] ?? T.sub; const vis = a.day <= currentDay;
+                return (
+                    <div key={a.id} style={{ marginBottom: 9, padding: '9px 11px', background: vis ? T.card : T.surf, borderRadius: 3, borderLeft: `3px solid ${vis ? tc : T.border}`, opacity: vis ? 1 : .3, transition: 'all .3s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 8, padding: '1px 5px', background: `${tc}18`, color: tc, borderRadius: 2 }}>{a.type}</span>
+                            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                                <span style={{ fontSize: 7, padding: '1px 5px', background: `${PREC_COLOR[a.prec] ?? T.muted}18`, color: PREC_COLOR[a.prec] ?? T.muted, borderRadius: 2 }}>{PREC_LABEL[a.prec] ?? a.prec}</span>
+                                <span style={{ fontSize: 9, color: T.sub, fontWeight: 600 }}>D{a.day}</span>
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: vis ? T.text : T.sub, marginBottom: 3 }}>{a.loc}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 9, color: T.sub }}>{a.cc} · {a.source}</span>
+                            <span style={{ fontSize: 9, color: tc, fontStyle: 'italic' }}>{a.tag}</span>
+                        </div>
+                        <div style={{ fontStyle: 'italic', fontSize: 7, color: T.border, marginBottom: 5 }}>{a.sourceId}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Bar value={a.score} color={tc} height={3} />
+                            <span style={{ fontSize: 8, color: T.muted, minWidth: 38 }}>t:{a.score.toFixed(2)}</span>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function ScoresTab({ corridor }: { corridor: Corridor }) {
+    if (!corridor) return null;
+    const rc = RISK[corridor.riskClass] ?? T.muted;
+    return (
+        <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 14 }}>7 MATHEMATICAL SOULS + TERRAIN PHYSICS</div>
+            {corridor.souls.map(s => {
+                const isHigh = s.value >= 0.78;
+                return (
+                    <div key={s.key} style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                                <span style={{ fontSize: 13, width: 18, textAlign: 'center', lineHeight: 1 }}>{s.sym}</span>
+                                <div>
+                                    <span style={{ fontSize: 8, color: T.muted }}>{s.s} </span>
+                                    <span style={{ fontSize: 10, color: isHigh ? T.text : T.sub }}>{s.name}</span>
+                                    {isHigh && <span style={{ fontSize: 7, color: rc, marginLeft: 6, padding: '1px 4px', background: `${rc}15`, borderRadius: 2 }}>DRIVER</span>}
+                                </div>
+                            </div>
+                            <span style={{ fontSize: 12, color: isHigh ? rc : T.sub, fontWeight: 600 }}>{s.value.toFixed(3)}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                            <Bar value={s.value} color={isHigh ? rc : `${rc}55`} height={4} />
+                            <span style={{ fontSize: 8, color: T.muted, minWidth: 80, textAlign: 'right' }}>×{s.w.toFixed(2)}={(s.w * s.value).toFixed(4)}</span>
+                        </div>
+                        <div style={{ fontSize: 8, color: T.border, paddingLeft: 25 }}>{s.desc}</div>
+                    </div>
+                );
+            })}
+            <div style={{ marginTop: 14, padding: '11px 14px', background: `${rc}0E`, border: `1px solid ${rc}25`, borderRadius: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <div style={{ fontSize: 8, color: T.sub, letterSpacing: 1 }}>WEIGHTED COMPOSITE</div>
+                    <div style={{ fontSize: 8, color: corridor.activated ? T.green : T.muted, marginTop: 2 }}>{corridor.riskClass} · {corridor.activated ? '◉ ACTIVATED' : '○ MONITORING'}</div>
+                    <div style={{ fontSize: 7, color: T.muted, marginTop: 1 }}>truth floor: 0.75</div>
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: rc, letterSpacing: 2 }}>{corridor.score.toFixed(4)}</div>
+            </div>
+        </div>
+    );
+}
+
+// ... more content coming in next chunk
+function CascadeTab({ corridor, currentDay, timeWindow }: { corridor: Corridor; currentDay: number; timeWindow: TimeWindow }) {
+    if (!corridor) return null;
+    const rc = RISK[corridor.riskClass] ?? T.muted;
+    const maxDay = getWindowDays(timeWindow);
+    const maxKm = corridor.totalKm;
+    const CW = 320, CH = 240, padL = 42, padB = 32, padT = 16, padR = 26;
+    const W = CW - padL - padR, H = CH - padT - padB;
+    const cx = (d: number) => padL + Math.min(1, d / maxDay) * W;
+    const cy = (k: number) => padT + H - Math.min(1, k / maxKm) * H;
+    const last = corridor.evidence[corridor.evidence.length - 1]!;
+    const sources = [...new Set(corridor.evidence.map(e => e.source))];
+    const phantomKm = corridor.nodes.find(n => n.type === 'phantom')?.km;
+    const borderKm = corridor.nodes.find(n => n.type === 'border')?.km;
+
+    const stepDays = timeWindow === '7D' ? 1 : timeWindow === '14D' ? 2 : timeWindow === '30D' ? 5 : timeWindow === '12W' ? 14 : timeWindow === '6M' ? 30 : 60;
+    const tickDays = [];
+    for (let d = 0; d <= maxDay; d += stepDays) tickDays.push(d);
+
+    const arcData: { d: number; v: number }[] = [];
+    for (let d = 0; d <= maxDay; d += maxDay / 40) {
+        if (d > currentDay) break;
+        const recentSignals = corridor.evidence.filter(e => e.day >= d - 14 && e.day <= d).length;
+        const normalized = Math.min(1.0, (recentSignals / 6) + (Math.sin(d / 12) * 0.15 + 0.15));
+        arcData.push({ d, v: normalized });
+    }
+    const arcPath = arcData.length > 0 ? arcData.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${cx(pt.d)} ${padT + H - Math.max(2, pt.v * 60)}`).join(' ') : '';
+    const arcFill = arcData.length > 0 ? `${arcPath} L ${cx(arcData[arcData.length - 1]!.d)} ${padT + H} L ${cx(0)} ${padT + H} Z` : '';
+
+    return (
+        <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 5 }}>SIGNAL CASCADE · SPATIAL-TEMPORAL PROOF</div>
+            <div style={{ fontSize: 10, color: T.sub, lineHeight: 1.6, marginBottom: 12 }}>Consistent velocity across <span style={{ color: T.teal, fontWeight: 600 }}>{sources.length}</span> independent sources proves corridor reality.</div>
+            <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: '100%', height: 'auto', background: T.card, borderRadius: 3, display: 'block', marginBottom: 12 }}>
+                <defs>
+                    <linearGradient id={`arcGradient-${corridor.id}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={rc} stopOpacity="0.8" />
+                        <stop offset="100%" stopColor={rc} stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                <rect width={CW} height={CH} fill={T.card} rx={3} />
+                {[0, 25, 50, 75, 100].map((km, i) => (
+                    <g key={i}>
+                        <line x1={padL} y1={cy(km)} x2={CW - padR} y2={cy(km)} stroke={T.border} strokeWidth=".5" />
+                        <text x={padL - 5} y={cy(km) + 3} fill={T.muted} fontSize="8" textAnchor="end" fontFamily="monospace">{km}</text>
+                    </g>
+                ))}
+                {tickDays.map(d => (
+                    <g key={d}>
+                        <line x1={cx(d)} y1={padT} x2={cx(d)} y2={padT + H} stroke={T.border} strokeWidth=".5" />
+                        <text x={cx(d)} y={padT + H + 16} fill={T.muted} fontSize="8" textAnchor="middle" fontFamily="monospace">{getWindowUnitLabel(timeWindow, d)}</text>
+                    </g>
+                ))}
+                {arcData.length > 0 && (
+                    <>
+                        <path d={arcFill} fill={`url(#arcGradient-${corridor.id})`} opacity="0.3" />
+                        <path d={arcPath} fill="none" stroke={rc} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                )}
+                {borderKm !== undefined && <><line x1={padL} y1={cy(borderKm)} x2={CW - padR} y2={cy(borderKm)} stroke={T.blue} strokeWidth="1" strokeDasharray="5,3" opacity=".7" /><text x={CW - padR + 3} y={cy(borderKm) + 3} fill={T.blue} fontSize="8" fontFamily="monospace">border</text></>}
+                {phantomKm !== undefined && <><line x1={padL} y1={cy(phantomKm)} x2={CW - padR} y2={cy(phantomKm)} stroke={T.amber} strokeWidth="1" strokeDasharray="3,3" opacity=".8" /><text x={CW - padR + 3} y={cy(phantomKm) + 3} fill={T.amber} fontSize="8" fontFamily="monospace">phantom</text></>}
+                <line x1={cx(0)} y1={cy(0)} x2={cx(last.day)} y2={cy(last.km)} stroke={rc} strokeWidth="1" strokeDasharray="3,3" opacity=".4" />
+                {corridor.evidence.map(sig => {
+                    const sc = SIGTYPE[sig.type] ?? T.sub; const vis = sig.day <= currentDay;
+                    return (
+                        <g key={sig.id}>
+                            {sig.type === 'ENTROPY' && <circle cx={cx(sig.day)} cy={cy(sig.km)} r={11} fill={`${T.amber}10`} stroke={T.amber} strokeWidth=".5" />}
+                            <circle cx={cx(sig.day)} cy={cy(sig.km)} r={4} fill={vis ? sc : `${sc}30`} stroke={vis ? T.bg : T.border} strokeWidth="1" />
+                            <text x={cx(sig.day) + 7} y={cy(sig.km) - 2} fill={vis ? sc : T.border} fontSize="7" fontFamily="monospace">{sig.id}</text>
+                        </g>
+                    );
+                })}
+                <line x1={padL} y1={padT} x2={padL} y2={padT + H} stroke={T.border} strokeWidth=".8" />
+                <line x1={padL} y1={padT + H} x2={CW - padR} y2={padT + H} stroke={T.border} strokeWidth=".8" />
+                <text x={padL - 20} y={padT + H / 2} fill={T.muted} fontSize="8" textAnchor="middle" fontFamily="monospace" transform={`rotate(-90,${padL - 20},${padT + H / 2})`}>km</text>
+                <text x={padL + W / 2} y={CH - 3} fill={T.muted} fontSize="8" textAnchor="middle" fontFamily="monospace">{timeWindow === '12W' || timeWindow === '6M' ? 'week' : timeWindow === '1Y' ? 'month' : 'day'}</text>
+            </svg>
+        </div>
+    );
+}
+
+function BriefTab({ corridor }: { corridor: Corridor }) {
+    if (!corridor) return <div style={{ padding: 16, fontSize: 10, color: T.muted }}>NO DATA</div>;
+    const rc = RISK[corridor.riskClass] ?? T.muted;
+    const drivers = corridor.souls.filter(s => s.value >= 0.78).map(s => s.name);
+    const sources = [...new Set(corridor.evidence.map(e => e.source))];
+    return (
+        <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 12 }}>CORRIDOR INTELLIGENCE BRIEF</div>
+            <div style={{ padding: '12px 14px', background: T.card, borderRadius: 3, marginBottom: 12, borderLeft: `3px solid ${rc}` }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: rc, letterSpacing: 2, marginBottom: 2 }}>{corridor.id}</div>
+                <div style={{ fontSize: 9, color: T.sub, marginBottom: 7 }}>Issued · {new Date().toISOString().slice(0, 10)} · {RUN_ID}</div>
+                <div style={{ fontSize: 10, color: T.text, lineHeight: 1.8, marginBottom: 11 }}>Probable informal cross-border corridor detected between <span style={{ color: rc }}>{corridor.startNode}</span> ({corridor.startCC}) and <span style={{ color: rc }}>{corridor.endNode}</span> ({corridor.endCC}). {corridor.coverage}.</div>
+                <div style={{ fontSize: 8, color: T.muted, letterSpacing: 1.2, marginBottom: 6 }}>INFERRED PATHWAY</div>
+                {corridor.nodes.map((n, i) => (
+                    <div key={n.name} style={{ display: 'flex', gap: 9, alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, color: n.type === 'phantom' ? T.amber : rc, width: 9, textAlign: 'center' }}>{i === 0 ? '▶' : i === corridor.nodes.length - 1 ? '◼' : '┊'}</span>
+                        <span style={{ fontSize: 11, color: n.type === 'phantom' ? T.amber : T.text }}>{n.name}</span>
+                        <span style={{ fontSize: 8, color: T.sub }}>{n.cc}</span>
+                        {n.type === 'phantom' && <span style={{ fontSize: 7, padding: '1px 5px', background: `${T.amber}18`, color: T.amber, borderRadius: 2 }}>PHANTOM</span>}
+                        <span style={{ fontSize: 8, color: T.muted, marginLeft: 'auto' }}>{PREC_LABEL[n.prec] ?? n.prec}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+export default function PhantomMap() {
+    const mapDivRef = useRef<HTMLDivElement>(null);
+    const viewerRef = useRef<CesiumType.Viewer | null>(null);
+    const entityIdsRef = useRef<string[]>([]);
+    const [cesiumReady, setCesiumReady] = useState(false);
+    const [corridors, setCorridors] = useState<Corridor[]>([]);
+    const [selId, setSelId] = useState<string | null>(null);
+    const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief'>('evidence');
+    const [timeWindow, setTimeWindow] = useState<TimeWindow>('14D');
+    const [currentDay, setCurrentDay] = useState(0);
+    const [playing, setPlaying] = useState(false);
+    const [clock, setClock] = useState('');
+    const [showSidebar, setShowSidebar] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [terrainRelief, setTerrainRelief] = useState(false);
+    const [terrainExaggeration, setTerrainExaggeration] = useState(false);
+    const [showOfficialRoute, setShowOfficialRoute] = useState(true);
+    const [showGapAnalysis, setShowGapAnalysis] = useState(false);
+    const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; title: string; subtitle: string; color: string; details?: { label: string; value: string }[] } | null>(null);
+
+    useEffect(() => {
+        async function fetchCorridors() {
+            try {
+                const res = await fetch('/api/corridors');
+                if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+                const data = await res.json();
+                setCorridors(data.items ?? []);
+                if (data.items?.length > 0) setSelId(data.items[0].id);
+                setLoading(false);
+            } catch (err) {
+                setErrorMsg(err instanceof Error ? err.message : 'Fetch Failed');
+                setLoading(false);
+            }
+        }
+        fetchCorridors();
+    }, []);
+
+    const corridor = corridors.find(c => c.id === selId) ?? corridors[0];
+    const rc = corridor ? (RISK[corridor.riskClass] ?? T.muted) : T.muted;
+    const maxDay = corridor ? getWindowDays(timeWindow) : 14;
+
+    useEffect(() => { const t = setInterval(() => setClock(new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC'), 1000); return () => clearInterval(t); }, []);
+    useEffect(() => {
+        if (!playing) return;
+        const stepSize = maxDay > 90 ? 4 : maxDay > 30 ? 2 : maxDay > 14 ? 1 : 0.5;
+        const t = setInterval(() => { setCurrentDay(d => { if (d >= maxDay) { setPlaying(false); return d; } return d + stepSize; }); }, 700);
+        return () => clearInterval(t);
+    }, [playing, maxDay]);
+    useEffect(() => { 
+        if (!corridor) return;
+        setCurrentDay(corridor.evidence.length > 0 ? Math.max(...corridor.evidence.map(e => e.day)) : 0); 
+        setPlaying(false); 
+        setTab('evidence'); 
+    }, [selId, corridor]);
+
+    useEffect(() => {
+        if (!mapDivRef.current) return;
+        let stopped = false;
+        const check = setInterval(() => {
+            if (!window.Cesium) return;
+            clearInterval(check);
+            if (stopped) return;
+            const Cesium = window.Cesium;
+            const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? '';
+            const creditDiv = document.createElement('div');
+            creditDiv.style.display = 'none';
+            document.body.appendChild(creditDiv);
+            const viewer = new Cesium.Viewer(mapDivRef.current!, { animation: false, baseLayerPicker: false, fullscreenButton: false, geocoder: false, homeButton: false, infoBox: false, sceneModePicker: false, selectionIndicator: false, timeline: false, navigationHelpButton: false, scene3DOnly: true, creditContainer: creditDiv, requestRenderMode: false, msaaSamples: 4 });
+            viewer.imageryLayers.removeAll();
+            if (maptilerKey) {
+                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`, maximumLevel: 18, credit: new Cesium.Credit('© MapTiler · © OpenStreetMap') }));
+                Cesium.CesiumTerrainProvider.fromUrl(new Cesium.Resource({ url: 'https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/', queryParameters: { key: maptilerKey } }), { requestVertexNormals: true }).then(tp => { if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp; }).catch(() => { });
+            }
+            viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(T.bg);
+            viewer.scene.backgroundColor = Cesium.Color.fromCssColorString(T.bg);
+            viewerRef.current = viewer;
+            setCesiumReady(true);
+
+            const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            handler.setInputAction((mv: any) => {
+                const picked = viewer.scene.pick(mv.endPosition);
+                if (Cesium.defined(picked) && picked.id) {
+                    const entity = picked.id as CesiumType.Entity;
+                    const eid = entity.id as string;
+                    const props = entity.properties;
+                    const kind = (props?.kind?.getValue() as string | undefined) ?? (eid.includes('-node-') ? 'node' : eid.includes('-sig-') ? 'signal' : eid.includes('-track-') ? 'corridor' : null);
+                    if (kind === 'node' || kind === 'signal') {
+                        const meta = (props?.meta?.getValue() as Record<string, unknown>) ?? {};
+                        const details: { label: string; value: string }[] = [];
+                        if (kind === 'node') { if (meta['type']) details.push({ label: 'TYPE', value: String(meta['type']).toUpperCase() }); if (meta['cc']) details.push({ label: 'COUNTRY', value: String(meta['cc']) }); if (meta['prec']) details.push({ label: 'PRECISION', value: String(meta['prec']) }); if (meta['km'] != null) details.push({ label: 'KM', value: String(meta['km']) }); }
+                        else { if (meta['type']) details.push({ label: 'SIGNAL', value: String(meta['type']) }); if (meta['source']) details.push({ label: 'SOURCE', value: String(meta['source']) }); details.push({ label: 'SCORE', value: Number(meta['score'] ?? 0).toFixed(3) }); }
+                        if (meta['lat'] != null) details.push({ label: 'COORD', value: `${Number(meta['lat']).toFixed(4)}, ${Number(meta['lng']).toFixed(4)}` });
+                        setHoverInfo({ x: mv.endPosition.x, y: mv.endPosition.y, title: entity.label?.text?.getValue(Cesium.JulianDate.now()) as string ?? eid, subtitle: kind === 'node' ? 'CORRIDOR NODE' : 'EVIDENCE ATOM', color: T.green, details });
+                        return;
+                    }
+                    if (kind === 'corridor') { const cid = (props?.corridorId?.getValue() as string) ?? eid.split('-track-')[0]; setHoverInfo({ x: mv.endPosition.x, y: mv.endPosition.y, title: cid, subtitle: 'CORRIDOR TRACK', color: T.sub }); return; }
+                }
+                setHoverInfo(null);
+            }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+            handler.setInputAction((click: any) => {
+                const picked = viewer.scene.pick(click.position);
+                if (Cesium.defined(picked) && picked.id) {
+                    const entity = picked.id as CesiumType.Entity;
+                    const eid = entity.id as string;
+                    const props = entity.properties;
+                    const kind = (props?.kind?.getValue() as string | undefined) ?? (eid.includes('-track-') ? 'corridor' : eid.includes('-node-') ? 'node' : eid.includes('-sig-') ? 'signal' : null);
+                    if (kind === 'corridor') { 
+                        const cid = (props?.corridorId?.getValue() as string) ?? eid.split('-track-')[0]; 
+                        const found = corridors.find(c => c.id === cid); 
+                        if (found) setSelId(found.id); 
+                    }
+                    else if (kind === 'signal' || kind === 'node') { 
+                        const cid = (props?.corridorId?.getValue() as string) ?? ((props?.meta?.getValue() as Record<string, unknown>)?.['corridorId'] as string); 
+                        if (cid) { 
+                            setSelId(cid); 
+                            setTab(kind === 'signal' ? 'evidence' : 'brief'); 
+                        } 
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+            const c0 = corridors[0]?.cameraCenter ?? { lat: -1.52, lng: 34.13, alt: 180000, tilt: 52, heading: 195 };
+            viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(c0.lng, c0.lat, c0.alt), orientation: { heading: Cesium.Math.toRadians(c0.heading), pitch: Cesium.Math.toRadians(-50), roll: 0 } });
+        }, 200);
+        return () => { stopped = true; clearInterval(check); if (viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.destroy(); viewerRef.current = null; };
+    }, []);
+
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+        if (terrainRelief) {
+            viewer.scene.globe.material = Cesium.createElevationBandMaterial({ scene: viewer.scene, layers: [{ entries: [{ height: 0, color: new Cesium.Color(0.20, 0.31, 0.19, 0.55) }, { height: 500, color: new Cesium.Color(0.36, 0.53, 0.26, 0.50) }, { height: 1200, color: new Cesium.Color(0.90, 0.85, 0.65, 0.45) }, { height: 2000, color: new Cesium.Color(0.99, 0.78, 0.44, 0.45) }, { height: 2800, color: new Cesium.Color(0.75, 0.62, 0.54, 0.50) }, { height: 4000, color: new Cesium.Color(0.94, 0.94, 0.94, 0.55) }], extendDownwards: true, extendUpwards: true }] });
+            viewer.scene.globe.enableLighting = true;
+        } else { viewer.scene.globe.material = undefined as unknown as CesiumType.Material; viewer.scene.globe.enableLighting = false; }
+    }, [cesiumReady, terrainRelief]);
+
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady) return;
+        viewer.scene.verticalExaggeration = terrainExaggeration ? 2.5 : 1.0;
+        viewer.scene.verticalExaggerationRelativeHeight = terrainExaggeration ? 1200.0 : 0.0;
+    }, [cesiumReady, terrainExaggeration]);
+
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+        for (const id of entityIdsRef.current) viewer.entities.removeById(id);
+        entityIdsRef.current = [];
+
+        for (const cor of corridors) {
+            const corRc = RISK[cor.riskClass] ?? T.muted;
+            const isActive = cor.activated;
+            const isSel = cor.id === selId;
+            const positions = Cesium.Cartesian3.fromDegreesArray(cor.pathCoords.flatMap(p => [p.lng, p.lat]));
+            const startPos = cor.pathCoords[0]!;
+            const endPos = cor.pathCoords[cor.pathCoords.length - 1]!;
+
+            if (showOfficialRoute) {
+                const formalId = `${cor.id}-formal-route`;
+                viewer.entities.add({
+                    id: formalId, properties: { kind: 'formal', corridorId: cor.id },
+                    polyline: { positions: Cesium.Cartesian3.fromDegreesArray([startPos.lng, startPos.lat, endPos.lng, endPos.lat]), width: isSel ? 2 : 1.5, material: Cesium.Color.fromCssColorString(T.blue).withAlpha(isSel ? 0.8 : 0.4), clampToGround: true }
+                });
+                entityIdsRef.current.push(formalId);
+            }
+            const ribbonId = `${cor.id}-track-ribbon`;
+            viewer.entities.add({ id: ribbonId, properties: { kind: 'corridor', corridorId: cor.id }, polyline: { positions, clampToGround: true, width: (isSel ? 28 : 16) * cor.score, material: Cesium.Color.fromCssColorString(corRc).withAlpha(isSel ? 0.13 : 0.06) } });
+            entityIdsRef.current.push(ribbonId);
+
+            const flowId = `${cor.id}-track-flow`;
+            viewer.entities.add({ id: flowId, properties: { kind: 'corridor', corridorId: cor.id }, polyline: { positions, clampToGround: true, width: isSel ? 6 : 3.5, material: new Cesium.PolylineDashMaterialProperty({ color: Cesium.Color.fromCssColorString(corRc).withAlpha(isActive ? 0.6 : 0.25), dashLength: isSel ? 20 : 12, dashPattern: 255 }) } });
+            entityIdsRef.current.push(flowId);
+
+            const spineId = `${cor.id}-track-spine`;
+            viewer.entities.add({ id: spineId, properties: { kind: 'corridor', corridorId: cor.id }, polyline: { positions, clampToGround: true, width: isSel ? 4 : 2, material: Cesium.Color.fromCssColorString(corRc).withAlpha(isActive ? (isSel ? 1.0 : 0.65) : 0.30) } });
+            entityIdsRef.current.push(spineId);
+
+            for (const node of cor.nodes) {
+                if (showGapAnalysis) {
+                    if (node.type === 'border' || node.type === 'start' || node.type === 'end') {
+                        const isBorder = node.type === 'border';
+                        const gapCovId = `${cor.id}-gap-cov-${node.name}`;
+                        viewer.entities.add({ id: gapCovId, position: Cesium.Cartesian3.fromDegrees(node.lng, node.lat), ellipse: { semiMinorAxis: isBorder ? 12000 : 8000, semiMajorAxis: isBorder ? 12000 : 8000, material: Cesium.Color.fromCssColorString(isBorder ? T.blue : T.sub).withAlpha(isBorder ? 0.15 : 0.05), outline: true, outlineColor: Cesium.Color.fromCssColorString(isBorder ? T.blue : T.sub).withAlpha(0.6), outlineWidth: 2, classificationType: Cesium.ClassificationType.TERRAIN } });
+                        entityIdsRef.current.push(gapCovId);
+                    }
+                    if (node.type === 'phantom') {
+                        const bzId = `${cor.id}-gap-blind-${node.name}`;
+                        viewer.entities.add({ id: bzId, polyline: { positions: Cesium.Cartesian3.fromDegreesArray([node.lng - 0.2, node.lat - 0.1, node.lng + 0.2, node.lat + 0.1]), width: 8, material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.2, taperPower: 0.5, color: Cesium.Color.fromCssColorString(T.red).withAlpha(0.8) }), clampToGround: true } });
+                        entityIdsRef.current.push(bzId);
+                    }
+                }
+                const nc = node.type === 'phantom' ? T.amber : node.type === 'border' ? T.blue : corRc;
+                const nodeId = `${cor.id}-node-${node.name}`;
+                viewer.entities.add({ id: nodeId, properties: { kind: 'node', corridorId: cor.id, meta: { ...node, corridorId: cor.id } }, position: Cesium.Cartesian3.fromDegrees(node.lng, node.lat), point: { pixelSize: node.type === 'phantom' ? (isSel ? 14 : 9) : (isSel ? 11 : 6), color: Cesium.Color.fromCssColorString(nc), outlineColor: Cesium.Color.fromCssColorString(T.bg), outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND }, label: isSel ? { text: node.name, font: '11px "IBM Plex Mono",monospace', fillColor: Cesium.Color.fromCssColorString(nc), outlineColor: Cesium.Color.fromCssColorString(T.bg), outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, horizontalOrigin: Cesium.HorizontalOrigin.CENTER, pixelOffset: new Cesium.Cartesian2(0, -16), disableDepthTestDistance: Number.POSITIVE_INFINITY, scale: 0.95 } : undefined });
+                entityIdsRef.current.push(nodeId);
+            }
+            if (isSel) {
+                for (const sig of cor.evidence) {
+                    const sc = SIGTYPE[sig.type] ?? T.sub;
+                    const sigId = `${cor.id}-sig-${sig.id}`;
+                    viewer.entities.add({ id: sigId, properties: { kind: 'signal', corridorId: cor.id, meta: { ...sig, corridorId: cor.id } }, position: Cesium.Cartesian3.fromDegrees(sig.lng, sig.lat), point: { pixelSize: new Cesium.CallbackProperty(() => { if (currentDay < sig.day) return 0; const diff = currentDay - sig.day; return diff < 0.5 ? 14 * (1 + (0.5 - diff) * 2) : Math.max(7, 14 - diff * 0.5); }, false), color: new Cesium.CallbackProperty(() => Cesium.Color.fromCssColorString(sc).withAlpha(currentDay >= sig.day ? 1 : 0), false), outlineColor: Cesium.Color.fromCssColorString(T.bg), outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND }, label: { text: sig.id, show: new Cesium.CallbackProperty(() => currentDay >= sig.day, false), font: '10px "IBM Plex Mono",monospace', fillColor: Cesium.Color.fromCssColorString(sc), outlineColor: Cesium.Color.fromCssColorString(T.bg), outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, horizontalOrigin: Cesium.HorizontalOrigin.CENTER, pixelOffset: new Cesium.Cartesian2(0, -14), disableDepthTestDistance: Number.POSITIVE_INFINITY, scale: 0.85 } });
+                    entityIdsRef.current.push(sigId);
+                }
+            }
+        }
+    }, [cesiumReady, selId, currentDay, showGapAnalysis, showOfficialRoute]);
+
+    const flyToCorridorCamera = useCallback(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !window.Cesium || !corridor) return;
+        const Cesium = window.Cesium; const cam = corridor.cameraCenter;
+        viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt), orientation: { heading: Cesium.Math.toRadians(cam.heading), pitch: Cesium.Math.toRadians(-50), roll: 0 }, duration: 1.8, easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT });
+    }, [corridor]);
+
+    useEffect(() => { if (cesiumReady) flyToCorridorCamera(); }, [cesiumReady, flyToCorridorCamera]);
+
+    const TABS = [{ k: 'evidence' as const, label: 'EVIDENCE' }, { k: 'cascade' as const, label: 'CASCADE' }, { k: 'scores' as const, label: 'SCORES' }, { k: 'brief' as const, label: 'BRIEF' }];
+
+    return (
+        <>
+            <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        @keyframes poe-dot{0%,100%{opacity:1}50%{opacity:.2}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .cesium-widget-credits,.cesium-viewer-bottom{display:none!important}
+        ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:${T.surf}}::-webkit-scrollbar-thumb{background:${T.border};border-radius:2px}
+      `}</style>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: T.bg, color: T.text, fontFamily: "'IBM Plex Mono',monospace", overflow: 'hidden' }}>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '6px 18px', background: T.surf, borderBottom: `1px solid ${T.border}`, flexShrink: 0, zIndex: 10 }}>
+                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 4, color: T.green, flexShrink: 0 }}>◉⟁⬡ PHANTOM POE</span>
+                    <span style={{ fontSize: 7, color: T.muted, letterSpacing: 1.5, flexShrink: 0 }}>CORRIDOR INTELLIGENCE · {RUN_ID}</span>
+                    <div style={{ flex: 1, fontSize: 8, color: T.sub, textAlign: 'center', fontStyle: 'italic' }}>&ldquo;We listen to where the earth is being walked.&rdquo;</div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 7 }}>
+                        <span style={{ color: T.muted }}>{clock}</span>
+                        {corridor && <span style={{ padding: '2px 8px', border: `1px solid ${rc}40`, color: rc }}>{corridor.riskClass}</span>}
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+                    {loading && (
+                        <div style={{ position: 'absolute', inset: 0, background: `${T.bg}DD`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, fontSize: 10, letterSpacing: 2 }}>
+                            SYNCHRONIZING REAL-TIME INTELLIGENCE...
+                        </div>
+                    )}
+
+                    {showSidebar && (
+                        <div style={{ width: 215, flexShrink: 0, background: T.surf, borderRight: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>
+                            <div style={{ padding: '8px 14px 6px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 7, letterSpacing: 1.8, color: T.muted }}>CORRIDORS</span>
+                                <span style={{ fontSize: 7, color: T.green }}>{corridors.length} ACTIVE</span>
+                            </div>
+                            <div style={{ flex: 1, overflowY: 'auto' }}>
+                                {corridors.map(c => <CorridorCard key={c.id} c={c} sel={selId === c.id} onClick={() => { setSelId(c.id); setTimeout(flyToCorridorCamera, 50); }} />)}
+                            </div>
+                            <div style={{ padding: '9px 14px', borderTop: `1px solid ${T.border}` }}>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
+                                    OFFICIAL ROUTE <input type="checkbox" checked={showOfficialRoute} onChange={e => setShowOfficialRoute(e.target.checked)} />
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4 }}>
+                                    GAP ANALYSIS <input type="checkbox" checked={showGapAnalysis} onChange={e => setShowGapAnalysis(e.target.checked)} />
+                                </label>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ flex: 1, position: 'relative' }}>
+                        <div ref={mapDivRef} style={{ width: '100%', height: '100%' }} />
+                        {hoverInfo && (
+                            <div style={{ position: 'absolute', left: hoverInfo.x + 15, top: hoverInfo.y - 15, background: `${T.card}EE`, borderLeft: `4px solid ${hoverInfo.color}`, padding: '9px 13px', borderRadius: 3, zIndex: 1000 }}>
+                                <div style={{ fontSize: 7, color: T.muted }}>{hoverInfo.subtitle}</div>
+                                <div style={{ fontSize: 14, color: hoverInfo.color }}>{hoverInfo.title}</div>
+                            </div>
+                        )}
+                        <div style={{ position: 'absolute', top: 12, right: 14, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <button onClick={() => setShowSidebar(!showSidebar)} style={{ background: T.surf, border: `1px solid ${T.border}`, color: T.sub, padding: '4px 10px', fontSize: 7 }}>{showSidebar ? 'HIDE LIST' : 'SHOW LIST'}</button>
+                        </div>
+                    </div>
+
+                    <div style={{ width: 285, flexShrink: 0, background: T.surf, borderLeft: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>
+                        {corridor && (
+                            <div style={{ padding: '10px 13px', borderBottom: `1px solid ${T.border}` }}>
+                                <div style={{ fontSize: 13, color: rc, letterSpacing: 2 }}>{corridor.id}</div>
+                                <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{corridor.score.toFixed(4)}</div>
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}` }}>
+                            {TABS.map(t => (
+                                <button key={t.k} onClick={() => setTab(t.k)} style={{ flex: 1, padding: '6px 0', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.k ? rc : 'transparent'}`, color: tab === t.k ? rc : T.muted, fontSize: 7, cursor: 'pointer' }}>{t.label}</button>
+                            ))}
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            {corridor && tab === 'evidence' && <EvidenceTab corridor={corridor} currentDay={currentDay} />}
+                            {corridor && tab === 'cascade' && <CascadeTab corridor={corridor} currentDay={currentDay} timeWindow={timeWindow} />}
+                            {corridor && tab === 'scores' && <ScoresTab corridor={corridor} />}
+                            {corridor && tab === 'brief' && <BriefTab corridor={corridor} />}
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ background: T.surf, borderTop: `1px solid ${T.border}`, padding: '8px 16px', zIndex: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button onClick={() => setPlaying(!playing)} style={{ background: T.card, border: `1px solid ${T.border}`, color: T.text, padding: '4px 12px', fontSize: 8 }}>{playing ? 'PAUSE' : 'PLAY'}</button>
+                        <input type="range" min={0} max={maxDay} value={currentDay} step={0.1} onChange={e => setCurrentDay(Number(e.target.value))} style={{ flex: 1, accentColor: rc }} />
+                        <span style={{ fontSize: 10, color: rc, minWidth: 40 }}>D{currentDay.toFixed(1)}</span>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                            {(['7D', '14D', '30D', '12W', '6M', '1Y'] as TimeWindow[]).map(w => (
+                                <button key={w} onClick={() => setTimeWindow(w)} style={{ background: timeWindow === w ? rc : 'none', color: timeWindow === w ? T.bg : T.sub, border: 'none', padding: '2px 6px', fontSize: 7, cursor: 'pointer' }}>{w}</button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}

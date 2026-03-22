@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ExplainabilityEngine } from '@/src/services/intelligence';
+import { fetchCorridorsFromNeon, type DbCorridorRow, type DbNodeRow, type DbEvidenceRow } from '@/lib/db';
 
 // Use genuine coordinates in Africa
 const LIVE_CORRIDORS = [
@@ -97,12 +98,136 @@ const LIVE_CORRIDORS = [
     }
 ];
 
+/** Build the full Corridor shape from Neon rows, merged with static geometry */
+function buildFromNeon(
+    dbRows: DbCorridorRow[],
+    nodes: DbNodeRow[],
+    evidence: DbEvidenceRow[],
+): ReturnType<typeof buildCorridorShape>[] {
+    return dbRows.map(row => {
+        // Find matching static corridor for geometry (pathCoords, engineInput, etc.)
+        const staticCor = LIVE_CORRIDORS.find(c => c.id === row.id);
+
+        const corNodes = nodes
+            .filter(n => n.corridor_def_id === row.id)
+            .map(n => ({
+                name: n.name,
+                lat: n.lat,
+                lng: n.lng,
+                alt: n.alt_m,
+                type: (n.type as 'start' | 'end' | 'border' | 'phantom') ?? 'start',
+                cc: n.country_code ?? '',
+                km: n.km,
+                prec: 'SETTLEMENT' as const,
+            }));
+
+        const corEvidence = evidence
+            .filter(e => e.corridor_def_id === row.id)
+            .map(e => ({
+                id: e.id,
+                day: e.day_offset,
+                km: e.km_marker,
+                type: e.evidence_type ?? 'DISPLACEMENT',
+                tag: e.tag ?? '',
+                loc: e.location_name ?? '',
+                cc: e.country_code ?? '',
+                score: e.score,
+                source: e.source ?? 'NEON',
+                prec: e.precision_level ?? 'SETTLEMENT',
+                sourceId: e.evidence_id ?? e.id,
+                lat: e.lat ?? 0,
+                lng: e.lng ?? 0,
+                alt: e.alt_m,
+            }));
+
+        return {
+            id: row.id,
+            short: `${row.start_node} → ${row.end_node}`,
+            region: row.region ?? '',
+            score: row.score,
+            riskClass: row.risk_class,
+            activated: row.activated,
+            startNode: row.start_node,
+            endNode: row.end_node,
+            startCC: staticCor?.startCC ?? '',
+            endCC: staticCor?.endCC ?? '',
+            mode: staticCor?.mode ?? 'FOOT',
+            velocity: row.velocity_km_day,
+            totalKm: row.total_km,
+            seasonal: staticCor?.seasonal ?? false,
+            canoe: staticCor?.canoe ?? false,
+            detour: staticCor?.detour ?? false,
+            firstDetected: row.first_detected ?? new Date().toISOString(),
+            coverage: staticCor?.coverage ?? '',
+            nearestFormal: staticCor?.nearestFormal ?? '',
+            gapZone: staticCor?.gapZone ?? false,
+            cameraCenter: row.cam_lat != null && row.cam_lng != null && row.cam_alt != null
+                ? { lat: row.cam_lat, lng: row.cam_lng, alt: row.cam_alt, tilt: row.cam_tilt ?? 50, heading: row.cam_heading ?? 0 }
+                : staticCor?.cameraCenter ?? null,
+            pathCoords: staticCor?.pathCoords ?? corNodes.map(n => ({ lat: n.lat, lng: n.lng, alt: n.alt })),
+            nodes: corNodes.length > 0 ? corNodes : (staticCor?.nodes ?? []),
+            souls: staticCor ? [] : [], // populated via engine below if static match found
+            evidence: corEvidence.length > 0 ? corEvidence : (staticCor?.evidence ?? []),
+        };
+    });
+}
+
+// Dummy return type helper for TypeScript
+function buildCorridorShape(_: unknown) { return _ as ReturnType<typeof buildFromNeon>[number]; }
+
 export async function GET() {
     try {
         const engine = new ExplainabilityEngine();
         const runId = `RUN-${new Date().toISOString().split('T')[0]?.replace(/-/g, '')}`;
 
-        // Process through Intelligence Engine to get real synthesis scores
+        // --- Try Neon first ---
+        const neonData = await fetchCorridorsFromNeon();
+        if (neonData && neonData.corridors.length > 0) {
+            const neonCorridors = buildFromNeon(neonData.corridors, neonData.nodes, neonData.evidence);
+            // For Neon corridors that also have a static match, run the engine to populate souls
+            const enriched = neonCorridors.map(cor => {
+                const staticCor = LIVE_CORRIDORS.find(c => c.id === cor.id);
+                if (!staticCor) return { ...cor, souls: [] };
+                const score = engine.synthesizeCorridorScore({
+                    runId,
+                    corridorId: cor.id,
+                    startNode: cor.startNode,
+                    endNode: cor.endNode,
+                    ...staticCor.engineInput,
+                    evidence: (cor.evidence ?? []).map(e => ({
+                        evidenceType: (e.type === 'HEALTH' ? 'health_signal' : 'market_signal') as never,
+                        description: e.tag,
+                        weight: e.score,
+                        source: e.source,
+                        sourceRecordId: e.sourceId,
+                        confidence: e.score,
+                        timestamp: new Date().toISOString(),
+                        nodeIds: [cor.startNode, cor.endNode],
+                    })),
+                    inferredVelocityKmh: staticCor.velocity,
+                    seasonallyActive: staticCor.seasonal,
+                    requiresCanoe: staticCor.canoe,
+                    conflictDetour: staticCor.detour,
+                    signalHistory: [0.2, 0.4, 0.6, 0.8, 0.9],
+                    frictionContext: { slopeDeg: 2, landCover: 'sparse_vegetation' as never },
+                    startCoord: { lat: staticCor.pathCoords[0]!.lat, lng: staticCor.pathCoords[0]!.lng },
+                    endCoord: { lat: staticCor.pathCoords[staticCor.pathCoords.length - 1]!.lat, lng: staticCor.pathCoords[staticCor.pathCoords.length - 1]!.lng },
+                    locationSignals: [],
+                    previousSignalHistory: [0.1, 0.2, 0.3],
+                });
+                return {
+                    ...cor,
+                    souls: Object.entries(score.scoreDecomposition).map(([key, value]) => ({
+                        key, sym: getSym(key), s: key.slice(0, 2).toUpperCase(),
+                        name: key.charAt(0).toUpperCase() + key.slice(1),
+                        w: 0.1, desc: `Engine synthesis (${key})`, value: value as number,
+                    })),
+                };
+            });
+            return NextResponse.json({ runId, corridors: enriched, source: 'neon' });
+        }
+
+        // --- Fall back to static LIVE_CORRIDORS processed through the engine ---
         const synthesized = LIVE_CORRIDORS.map(c => {
             const startCoord = { lat: c.pathCoords[0]!.lat, lng: c.pathCoords[0]!.lng };
             const endCoord = { lat: c.pathCoords[c.pathCoords.length - 1]!.lat, lng: c.pathCoords[c.pathCoords.length - 1]!.lng };
@@ -156,7 +281,7 @@ export async function GET() {
                 seasonal: score.seasonallyActive,
                 canoe: score.requiresCanoe,
                 detour: score.conflictDetour,
-                firstDetected: score.firstDetected,
+                firstDetected: score.firstDetected ?? new Date().toISOString(),
                 coverage: c.coverage,
                 nearestFormal: c.nearestFormal,
                 gapZone: c.gapZone,
@@ -177,8 +302,9 @@ export async function GET() {
             };
         });
 
-        return NextResponse.json({ runId, corridors: synthesized });
+        return NextResponse.json({ runId, corridors: synthesized, source: 'static' });
     } catch (err) {
+        console.error('[live/route] GET error:', err);
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }
 }

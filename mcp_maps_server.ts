@@ -255,7 +255,7 @@ export async function startMcpGoogleMapServer(
       lat: z.number().optional().describe('Latitude for live signal search'),
       lng: z.number().optional().describe('Longitude for live signal search'),
     },
-    async ({ corridorId, locationA, locationB, velocity, terrainFriction, signals, signalHistory, useLiveSentinel, lat, lng }) => {
+    async ({ corridorId, locationA, locationB, velocity, terrainFriction, signals, signalHistory, useLiveSentinel, lat, lng }): Promise<{ content: { type: string; text: any; }[]; isError?: undefined; } | { content: { type: any; text: string; }[]; isError: boolean; }> => {
       try {
         const res = await fetch('/api/corridor/analyze', {
           method: 'POST',

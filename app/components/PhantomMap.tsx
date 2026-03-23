@@ -833,14 +833,24 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
 
                     if (entity.polyline) {
                         const col = Cesium.Color.fromCssColorString(rawColor);
-                        entity.polyline.material = lineStyle === 'dashed'
-                            ? new Cesium.PolylineDashMaterialProperty({
+                        if (lineStyle === 'dashed') {
+                            // Phantom corridor — dashed flow line
+                            entity.polyline.material = new Cesium.PolylineDashMaterialProperty({
                                 color: col,
                                 dashLength: 16,
                                 dashPattern: 0xff00,
-                              })
-                            : new Cesium.ColorMaterialProperty(col) as unknown as CesiumType.MaterialProperty;
-                        (entity.polyline as any).width = lineWidth;
+                            }) as unknown as CesiumType.MaterialProperty;
+                            (entity.polyline as any).width = lineWidth;
+                        } else {
+                            // Formal / official route — prominent neon glow + solid core
+                            // Two-layer approach: outer wide glow + inner bright core
+                            entity.polyline.material = new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.25,
+                                taperPower: 1.0,
+                                color: col.withAlpha(0.9),
+                            }) as unknown as CesiumType.MaterialProperty;
+                            (entity.polyline as any).width = Math.max(lineWidth * 4, 10); // make it visually wide
+                        }
                         (entity.polyline as any).clampToGround = true;
                     }
 
@@ -1038,10 +1048,37 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             const endPos = cor.pathCoords[cor.pathCoords.length - 1]!;
 
             if (showOfficialRoute) {
+                // Outer glow — PolylineGlowMaterialProperty gives neon pulse look
+                const formalGlowId = `${cor.id}-formal-glow`;
+                viewer.entities.add({
+                    id: formalGlowId, properties: { kind: 'formal', corridorId: cor.id },
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArray([startPos.lng, startPos.lat, endPos.lng, endPos.lat]),
+                        width: isSel ? 22 : 14,
+                        material: new Cesium.PolylineGlowMaterialProperty({
+                            glowPower: 0.3,
+                            taperPower: 1.0,
+                            color: Cesium.Color.fromCssColorString(T.blue).withAlpha(isSel ? 0.55 : 0.28),
+                        }),
+                        clampToGround: true,
+                    }
+                });
+                entityIdsRef.current.push(formalGlowId);
+
+                // Solid bright core line on top
                 const formalId = `${cor.id}-formal-route`;
                 viewer.entities.add({
                     id: formalId, properties: { kind: 'formal', corridorId: cor.id },
-                    polyline: { positions: Cesium.Cartesian3.fromDegreesArray([startPos.lng, startPos.lat, endPos.lng, endPos.lat]), width: isSel ? 2 : 1.5, material: Cesium.Color.fromCssColorString(T.blue).withAlpha(isSel ? 0.8 : 0.4), clampToGround: true }
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArray([startPos.lng, startPos.lat, endPos.lng, endPos.lat]),
+                        width: isSel ? 4 : 2.5,
+                        material: new Cesium.PolylineGlowMaterialProperty({
+                            glowPower: 0.15,
+                            taperPower: 1.0,
+                            color: Cesium.Color.fromCssColorString(T.blue).withAlpha(isSel ? 1.0 : 0.85),
+                        }),
+                        clampToGround: true,
+                    }
                 });
                 entityIdsRef.current.push(formalId);
             }
@@ -1181,10 +1218,10 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                     <div style={{ width: 32, height: 3, background: `linear-gradient(90deg, ${T.green}, ${T.amber}, ${T.red})`, borderRadius: 2, flexShrink: 0, opacity: 0.85 }} />
                                     <span style={{ fontSize: 7.5, color: T.sub }}>Phantom Corridor</span>
                                 </div>
-                                {/* Formal route — solid blue line */}
+                                {/* Formal route — glowing blue line */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                                    <div style={{ width: 32, height: 2, background: T.blue, borderRadius: 2, flexShrink: 0 }} />
-                                    <span style={{ fontSize: 7.5, color: T.sub }}>Formal Route</span>
+                                    <div style={{ width: 32, height: 4, background: T.blue, borderRadius: 3, flexShrink: 0, boxShadow: `0 0 8px 2px ${T.blue}99` }} />
+                                    <span style={{ fontSize: 7.5, color: T.sub }}>Official Route</span>
                                 </div>
                                 {/* Phantom POE node — gold diamond */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>

@@ -390,13 +390,19 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
             baseLayer: false as unknown as CesiumType.ImageryLayer,
         });
 
-        // OSM fallback base imagery
+        // Base imagery: Sentinel-2 Ion asset 3812 (same as main viewer)
         viewer.imageryLayers.removeAll();
-        viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            maximumLevel: 19,
-            credit: new Cesium.Credit('© OpenStreetMap contributors'),
-        }));
+        Cesium.IonImageryProvider.fromAssetId(3812).then((p: CesiumType.IonImageryProvider) => {
+            if (!insetViewerRef.current?.isDestroyed()) insetViewerRef.current!.imageryLayers.addImageryProvider(p);
+        }).catch(() => {
+            if (!insetViewerRef.current?.isDestroyed()) {
+                insetViewerRef.current!.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    maximumLevel: 19,
+                    credit: new Cesium.Credit('© OpenStreetMap contributors'),
+                }));
+            }
+        });
 
         // World Terrain with vertex normals for slope/aspect/elevation shading
         Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then((tp: CesiumType.TerrainProvider) => {
@@ -762,12 +768,34 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                 baseLayer: false as unknown as CesiumType.ImageryLayer,
             });
             viewer.imageryLayers.removeAll();
+
+            // Primary base layer: Sentinel-2 natural colour (Ion asset 3812)
+            // per the reference Cesium snippet: IonImageryProvider.fromAssetId(3812)
+            Cesium.IonImageryProvider.fromAssetId(3812).then((ionProvider: CesiumType.IonImageryProvider) => {
+                if (stopped || !viewerRef.current || viewerRef.current.isDestroyed()) return;
+                const baseLayer = viewerRef.current.imageryLayers.addImageryProvider(ionProvider);
+                viewerRef.current.zoomTo(baseLayer).catch(() => {});
+            }).catch(() => {
+                // Fallback if Ion asset 3812 is not available: MapTiler satellite or OSM
+                if (stopped || !viewerRef.current || viewerRef.current.isDestroyed()) return;
+                const v = viewerRef.current;
+                if (maptilerKey) {
+                    v.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                        url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`,
+                        maximumLevel: 18,
+                        credit: new Cesium.Credit('© MapTiler · © OpenStreetMap'),
+                    }));
+                } else {
+                    v.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        maximumLevel: 19,
+                        credit: new Cesium.Credit('© OpenStreetMap contributors'),
+                    }));
+                }
+            });
+
+            // Terrain: MapTiler quantized-mesh if key present, else Cesium World Terrain
             if (maptilerKey) {
-                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-                    url: `https://api.maptiler.com/maps/satellite/{z}/{x}/{y}@2x.jpg?key=${maptilerKey}`,
-                    maximumLevel: 18,
-                    credit: new Cesium.Credit('© MapTiler · © OpenStreetMap'),
-                }));
                 Cesium.CesiumTerrainProvider.fromUrl(new Cesium.Resource({
                     url: 'https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/',
                     queryParameters: { key: maptilerKey },
@@ -775,18 +803,68 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                     if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp;
                 }).catch(() => { });
             } else {
-                // Fallback: OpenStreetMap tiles (no API key required) so the globe is
-                // never a plain black void when NEXT_PUBLIC_MAPTILER_KEY is not set.
-                viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-                    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    maximumLevel: 19,
-                    credit: new Cesium.Credit('© OpenStreetMap contributors'),
-                }));
-                // Load Cesium World Terrain using the Ion token we already set above
                 Cesium.createWorldTerrainAsync({ requestVertexNormals: true }).then(tp => {
                     if (!stopped && viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.terrainProvider = tp;
                 }).catch(() => { });
             }
+
+            // Load corridor GeoJSON (phantom-corridors.geojson) as a datasource.
+            // Features carry color + line_style in properties — rendered per the legend:
+            //   PHANTOM  → dashed, risk color (red/orange/yellow)
+            //   FORMAL   → solid, #3B82F6 blue
+            //   PHANTOM_POE → gold point
+            //   FORMAL_GATE → blue point
+            //   IOM_FMP  → cyan point
+            (Cesium as any).GeoJsonDataSource.load('/phantom-corridors.geojson', {
+                clampToGround: true,
+                stroke: Cesium.Color.WHITE,
+                fill: Cesium.Color.WHITE.withAlpha(0.3),
+                strokeWidth: 3,
+            }).then((ds: CesiumType.GeoJsonDataSource) => {
+                if (stopped || !viewerRef.current || viewerRef.current.isDestroyed()) return;
+                viewerRef.current.dataSources.add(ds);
+
+                for (const entity of ds.entities.values) {
+                    const p = (entity as any).properties;
+                    if (!p) continue;
+                    const routeType: string = p.route_type?.getValue() ?? '';
+                    const rawColor: string = p.color?.getValue() ?? '#FFFFFF';
+                    const lineStyle: string = p.line_style?.getValue() ?? 'solid';
+                    const lineWidth: number = p.line_width?.getValue() ?? 2;
+
+                    if (entity.polyline) {
+                        const col = Cesium.Color.fromCssColorString(rawColor);
+                        entity.polyline.material = lineStyle === 'dashed'
+                            ? new Cesium.PolylineDashMaterialProperty({
+                                color: col,
+                                dashLength: 16,
+                                dashPattern: 0xff00,
+                              })
+                            : new Cesium.ColorMaterialProperty(col) as unknown as CesiumType.MaterialProperty;
+                        (entity.polyline as any).width = lineWidth;
+                        (entity.polyline as any).clampToGround = true;
+                    }
+
+                    if (entity.point) {
+                        const ptColor: Record<string, string> = {
+                            PHANTOM_POE: '#FFD700',
+                            FORMAL_GATE: '#3B82F6',
+                            IOM_FMP:     '#06B6D4',
+                        };
+                        const col = Cesium.Color.fromCssColorString(ptColor[routeType] ?? rawColor);
+                        entity.point.color = new Cesium.ConstantProperty(col) as unknown as CesiumType.Property;
+                        (entity.point as any).pixelSize = routeType === 'PHANTOM_POE' ? 10 : 7;
+                        (entity.point as any).outlineColor = new Cesium.ConstantProperty(Cesium.Color.fromCssColorString(T.bg));
+                        (entity.point as any).outlineWidth = 1.5;
+                        (entity.point as any).disableDepthTestDistance = Number.POSITIVE_INFINITY;
+                    }
+
+                    // Label from name property
+                    if (entity.label && p.name) {
+                        entity.label.show = new Cesium.ConstantProperty(false) as unknown as CesiumType.Property;
+                    }
+                }
+            }).catch(() => {});
             viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e1a');
             viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0e1a');
             viewerRef.current = viewer;

@@ -602,7 +602,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
     const [cesiumReady, setCesiumReady] = useState(false);
     const [corridors, setCorridors] = useState<Corridor[]>(CORRIDORS ?? []);
     const [selId, setSelId] = useState<string | null>(initialSelId ?? null);
-    const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief'>('evidence');
+    // tab state removed — detail panel moved to /analytics page
     const [timeWindow, setTimeWindow] = useState<TimeWindow>('14D');
     const [currentDay, setCurrentDay] = useState(0);
     const [playing, setPlaying] = useState(false);
@@ -646,7 +646,6 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
         const evArr = corridor.evidence ?? [];
         setCurrentDay(evArr.length > 0 ? Math.max(...evArr.map(e => e.day)) : 0); 
         setPlaying(false); 
-        setTab('evidence'); 
     }, [selId, corridor]);
 
     // Fetch cascade data (source-coded signal layer) from /api/corridors/:id/cascade
@@ -1110,8 +1109,6 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
 
     useEffect(() => { if (cesiumReady) flyToCorridorCamera(); }, [cesiumReady, flyToCorridorCamera]);
 
-    const TABS = [{ k: 'evidence' as const, label: 'EVIDENCE' }, { k: 'cascade' as const, label: 'CASCADE' }, { k: 'scores' as const, label: 'SCORES' }, { k: 'brief' as const, label: 'BRIEF' }];
-
     return (
         <>
             <style>{`
@@ -1120,9 +1117,11 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
         @keyframes spin{to{transform:rotate(360deg)}}
         .cesium-widget-credits,.cesium-viewer-bottom{display:none!important}
         ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:${T.surf}}::-webkit-scrollbar-thumb{background:${T.border};border-radius:2px}
+        .popup-link:hover{color:${T.green}!important}
       `}</style>
             <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: T.bg, color: T.text, fontFamily: "'IBM Plex Mono',monospace", overflow: 'hidden' }}>
 
+                {/* ---- Header ------------------------------------------------ */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '6px 18px', background: T.surf, borderBottom: `1px solid ${T.border}`, flexShrink: 0, zIndex: 10 }}>
                     <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 4, color: T.green, flexShrink: 0 }}>◉⟁⬡ PHANTOM POE</span>
                     <span style={{ fontSize: 7, color: T.muted, letterSpacing: 1.5, flexShrink: 0 }}>CORRIDOR INTELLIGENCE · {RUN_ID}</span>
@@ -1130,6 +1129,10 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 7 }}>
                         <span style={{ color: T.muted }}>{clock}</span>
                         {corridor && <span style={{ padding: '2px 8px', border: `1px solid ${rc}40`, color: rc }}>{corridor.riskClass}</span>}
+                        <a href="/analytics" style={{
+                            fontSize: 7, letterSpacing: 1.5, color: T.green, border: `1px solid ${T.green}60`,
+                            padding: '3px 10px', textDecoration: 'none', whiteSpace: 'nowrap',
+                        }}>ANALYTICS ↗</a>
                     </div>
                 </div>
 
@@ -1152,20 +1155,10 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4 }}>
                                     GAP ANALYSIS <input type="checkbox" checked={showGapAnalysis} onChange={e => setShowGapAnalysis(e.target.checked)} />
                                 </label>
-                                {/* Cascade source signal layer — ACLED/DTM/DHIS2 markers on terrain */}
+                                        {/* Cascade source signal layer — ACLED/DTM/DHIS2 markers on terrain */}
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4, color: showCascadeLayer ? SOURCE_COLOR['AFRO-SENTINEL'] : T.sub }}>
                                     CASCADE SIGNALS <input type="checkbox" checked={showCascadeLayer} onChange={e => setShowCascadeLayer(e.target.checked)} />
                                 </label>
-                                {showCascadeLayer && cascadeData && (
-                                    <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {Object.entries(SOURCE_COLOR).filter(([k]) => !['entropy_spike','phantom_poe'].includes(k)).map(([src, col]) => (
-                                            <div key={src} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: col, flexShrink: 0 }} />
-                                                <span style={{ fontSize: 7, color: T.muted }}>{src}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                                 <div style={{ height: 1, background: T.border, margin: '6px 0' }} />
                                 <div style={{ fontSize: 7, letterSpacing: 1.5, color: T.muted, marginBottom: 6 }}>TERRAIN</div>
                                 {/* Photorealistic 3D Tiles — viewer-4AbUS.js */}
@@ -1179,49 +1172,93 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                     <input type="checkbox" checked={showRoadOverlay} onChange={e => setShowRoadOverlay(e.target.checked)} />
                                 </label>
                             </div>
+
+                            {/* ---- Visual legend ---------------------------------- */}
+                            <div style={{ padding: '10px 14px', borderTop: `1px solid ${T.border}` }}>
+                                <div style={{ fontSize: 7, letterSpacing: 1.5, color: T.muted, marginBottom: 8 }}>LEGEND</div>
+                                {/* Phantom corridor — dashed gradient line */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                                    <div style={{ width: 32, height: 3, background: `linear-gradient(90deg, ${T.green}, ${T.amber}, ${T.red})`, borderRadius: 2, flexShrink: 0, opacity: 0.85 }} />
+                                    <span style={{ fontSize: 7.5, color: T.sub }}>Phantom Corridor</span>
+                                </div>
+                                {/* Formal route — solid blue line */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                                    <div style={{ width: 32, height: 2, background: T.blue, borderRadius: 2, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 7.5, color: T.sub }}>Formal Route</span>
+                                </div>
+                                {/* Phantom POE node — gold diamond */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                                    <div style={{ width: 10, height: 10, background: '#FFD700', transform: 'rotate(45deg)', flexShrink: 0 }} />
+                                    <span style={{ fontSize: 7.5, color: T.sub }}>Phantom POE Node</span>
+                                </div>
+                                {/* Formal gate — blue dot */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: T.blue, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 7.5, color: T.sub }}>Formal Gate / IOM FMP</span>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     <div style={{ flex: 1, position: 'relative' }}>
                         <div ref={mapDivRef} style={{ width: '100%', height: '100%' }} />
+
+                        {/* ---- Detection popup (hover = minimal, click = expanded) ---- */}
                         {hoverInfo && (
-                            <div style={{ position: 'absolute', left: hoverInfo.x + 15, top: hoverInfo.y - 15, background: `${T.card}EE`, borderLeft: `4px solid ${hoverInfo.color}`, padding: '9px 13px', borderRadius: 3, zIndex: 1000 }}>
-                                <div style={{ fontSize: 7, color: T.muted }}>{hoverInfo.subtitle}</div>
-                                <div style={{ fontSize: 14, color: hoverInfo.color }}>{hoverInfo.title}</div>
+                            <div style={{
+                                position: 'absolute',
+                                left: Math.min(hoverInfo.x + 16, window.innerWidth - 280),
+                                top: Math.max(8, hoverInfo.y - 20),
+                                background: `${T.card}F2`,
+                                backdropFilter: 'blur(10px)',
+                                borderLeft: `4px solid ${hoverInfo.color}`,
+                                borderRadius: 4,
+                                zIndex: 1000,
+                                minWidth: 220,
+                                maxWidth: 260,
+                                boxShadow: `0 8px 32px rgba(0,0,0,.6), 0 0 0 1px ${T.border}`,
+                                overflow: 'hidden',
+                            }}>
+                                {/* Title row */}
+                                <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${T.border}` }}>
+                                    <div style={{ fontSize: 7, color: T.muted, letterSpacing: 1.5, textTransform: 'uppercase' }}>{hoverInfo.subtitle}</div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: hoverInfo.color, marginTop: 2, lineHeight: 1.2 }}>{hoverInfo.title}</div>
+                                </div>
+
+                                {/* Detail rows (from hoverInfo.details if present) */}
+                                {hoverInfo.details && hoverInfo.details.length > 0 && (
+                                    <div style={{ padding: '6px 12px' }}>
+                                        {hoverInfo.details.map((d: { label: string; value: string }) => (
+                                            <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '2px 0', borderBottom: `1px solid ${T.border}22` }}>
+                                                <span style={{ fontSize: 8, color: T.muted }}>{d.label}</span>
+                                                <span style={{ fontSize: 9, color: T.text, fontWeight: 600 }}>{d.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Analytics link */}
+                                <div style={{ padding: '5px 12px 8px', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <a href="/analytics" className="popup-link" style={{
+                                        fontSize: 8, color: T.sub, textDecoration: 'none',
+                                        letterSpacing: 1, transition: 'color 0.15s',
+                                    }}>VIEW FULL ANALYTICS ↗</a>
+                                </div>
                             </div>
                         )}
+
+                        {/* ---- Map controls top-right ---- */}
                         <div style={{ position: 'absolute', top: 12, right: 14, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <button onClick={() => setShowSidebar(!showSidebar)} style={{ background: T.surf, border: `1px solid ${T.border}`, color: T.sub, padding: '4px 10px', fontSize: 7 }}>{showSidebar ? 'HIDE LIST' : 'SHOW LIST'}</button>
                         </div>
-                        {/* Terrain inset — elevation/slope/aspect shading with contour lines
-                            and corridor footprint polygon, per get-elevation-contour-material.js
-                            and viewer-638QR.js reference patterns */}
+
+                        {/* Terrain inset — elevation/slope/aspect shading with contour lines */}
                         {cesiumReady && (
                             <TerrainInset
                                 corridor={corridor}
                                 ionToken={process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiMmRmYzcxNC0yZjM5LTQ0NzUtYWRkYi1kMjc1NzYwYTQ0NjYiLCJpZCI6MjE0OTQzLCJpYXQiOjE3MTU2NTMyNjN9.1fW--_-6R3TApPF2tAlOfXrqJadYPdwKqpPVkPetHP4'}
                             />
                         )}
-                    </div>
-
-                    <div style={{ width: 285, flexShrink: 0, background: T.surf, borderLeft: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 5 }}>
-                        {corridor && (
-                            <div style={{ padding: '10px 13px', borderBottom: `1px solid ${T.border}` }}>
-                                <div style={{ fontSize: 13, color: rc, letterSpacing: 2 }}>{corridor.id}</div>
-                                <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{(corridor.score ?? 0).toFixed(4)}</div>
-                            </div>
-                        )}
-                        <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}` }}>
-                            {TABS.map(t => (
-                                <button key={t.k} onClick={() => setTab(t.k)} style={{ flex: 1, padding: '6px 0', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.k ? rc : 'transparent'}`, color: tab === t.k ? rc : T.muted, fontSize: 7, cursor: 'pointer' }}>{t.label}</button>
-                            ))}
-                        </div>
-                        <div style={{ flex: 1, overflowY: 'auto' }}>
-                            {corridor && tab === 'evidence' && <EvidenceTab corridor={corridor} currentDay={currentDay} />}
-                            {corridor && tab === 'cascade' && <CascadeTab corridor={corridor} currentDay={currentDay} timeWindow={timeWindow} />}
-                            {corridor && tab === 'scores' && <ScoresTab corridor={corridor} />}
-                            {corridor && tab === 'brief' && <BriefTab corridor={corridor} />}
-                        </div>
                     </div>
                 </div>
 

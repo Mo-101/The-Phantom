@@ -118,14 +118,53 @@ export async function GET(req: Request) {
       avg: vals.reduce((a, b) => a + b, 0) / vals.length,
     }));
 
+    // ---- HMM state derivation per corridor (score-based proxy) ----
+    function derivedHmmState(score: number): string {
+      if (score >= 0.85) return 'surge';
+      if (score >= 0.70) return 'active_crossing';
+      if (score >= 0.50) return 'probing';
+      return 'dormant';
+    }
+
+    // ---- Coverage gap stats -------------------------------------------
+    const gapCorridors = corridors.filter((c: any) => c.gapZone === true);
+    const monitoredPct = corridors.length
+      ? Math.round(((corridors.length - gapCorridors.length) / corridors.length) * 100)
+      : 0;
+    const gapKm = gapCorridors.reduce((a: number, c: any) => a + (c.totalKm ?? 0), 0);
+
+    // ---- All evidence atoms (flat, chronological) --------------------
+    const allEvidence = corridors
+      .flatMap((c: any) =>
+        (c.evidence ?? []).map((ev: any) => ({
+          ...ev,
+          corridorId: c.id,
+          corridorShort: c.short,
+          corridorRiskClass: c.riskClass ?? derivedHmmState(c.score ?? 0),
+        }))
+      )
+      .sort((a: any, b: any) => (a.day ?? 0) - (b.day ?? 0));
+
+    // ---- Per-corridor rows with hmmState -----------------------------
+    const corridorRowsEnriched = corridorRows.map((r: any) => {
+      const src = corridors.find((c: any) => c.id === r.id);
+      return {
+        ...r,
+        hmmState: derivedHmmState(r.score),
+        souls: src?.souls ?? [],
+      };
+    });
+
     return NextResponse.json({
       hero: { totalCorridors, totalEvidence, avgScore, totalKm },
       signalTypes,
       riskBuckets,
-      corridorRows,
+      corridorRows: corridorRowsEnriched,
       timeline,
       sources,
       soulAverages,
+      coverageGap: { monitoredPct, unmonitoredPct: 100 - monitoredPct, gapKm, gapCount: gapCorridors.length },
+      allEvidence,
       generatedAt: new Date().toISOString(),
     });
   } catch (err) {

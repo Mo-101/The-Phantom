@@ -110,7 +110,7 @@ export async function GET(req: Request) {
     for (const c of corridors) {
       for (const soul of c.souls ?? []) {
         if (!soulAccum[soul.key]) soulAccum[soul.key] = [];
-        soulAccum[soul.key].push(soul.value ?? 0);
+        soulAccum[soul.key]!.push(soul.value ?? 0);
       }
     }
     const soulAverages = Object.entries(soulAccum).map(([key, vals]) => ({

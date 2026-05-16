@@ -39,6 +39,9 @@ interface CorridorNode { name: string; lat: number; lng: number; alt: number; ty
 interface EvidenceAtom { id: string; day: number; km: number; type: string; tag: string; loc: string; cc: string; score: number; source: string; prec: string; sourceId: string; lat: number; lng: number; alt: number; }
 interface SoulScore { key: string; sym: string; s: string; name: string; w: number; desc: string; value: number; }
 interface Corridor { id: string; short: string; region: string; score: number; riskClass: string; activated: boolean; startNode: string; endNode: string; startCC: string; endCC: string; mode: string; velocity: number; totalKm: number; seasonal: boolean; canoe: boolean; detour: boolean; firstDetected: string; coverage: string; nearestFormal: string; gapZone: boolean; cameraCenter: { lat: number; lng: number; alt: number; tilt: number; heading: number }; pathCoords: Array<{ lat: number; lng: number; alt: number }>; nodes: CorridorNode[]; souls: SoulScore[]; evidence: EvidenceAtom[]; }
+interface LogisticsWaypoint { id: string; seq: number; name: string; lat: number; lng: number; waypoint_type: string; leg_mode: string | null; leg_km: number | null; leg_hours: number | null; leg_risk_score: number | null; operator: string | null; country_code: string; }
+interface LogisticsRoute { id: string; name: string; classification: 'PRIMARY' | 'ALTERNATE' | 'BLOCKED' | 'CONTINGENCY'; total_km: number; estimated_hours: number; risk_class: string; cold_chain_capable: boolean; blocked_reason: string | null; style_color: string; waypoints: LogisticsWaypoint[]; modes: string[]; purpose: string; }
+const LR_COLOR: Record<string, string> = { PRIMARY: '#22c55e', ALTERNATE: '#f59e0b', BLOCKED: '#ef4444', CONTINGENCY: '#8B7CF8' };
 
 const RUN_ID = 'RUN-20260314-X7Q2';
 
@@ -256,6 +259,65 @@ function BriefTab({ corridor }: { corridor: Corridor }) {
                     </div>
                 ))}
             </div>
+        </div>
+    );
+}
+
+function LogisticsTab({ routes, corridorId }: { routes: LogisticsRoute[]; corridorId: string | null }) {
+    if (!corridorId) return <div style={{ padding: 16, fontSize: 10, color: T.muted }}>NO CORRIDOR SELECTED</div>;
+    if (routes.length === 0) return (
+        <div style={{ padding: 16, fontSize: 10, color: T.muted }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, marginBottom: 8 }}>LOGISTICS ROUTES</div>
+            <div style={{ color: T.sub }}>No routes computed yet.</div>
+            <div style={{ fontSize: 8, color: T.muted, marginTop: 6 }}>Run POST /api/corridors/{'{id}'}/recompute-routes to generate.</div>
+        </div>
+    );
+    return (
+        <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 4 }}>LOGISTICS ROUTES</div>
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                {Object.entries(LR_COLOR).map(([cls, col]) => (
+                    <div key={cls} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke={col} strokeWidth="2.5" strokeDasharray={cls === 'BLOCKED' ? '3 4' : cls === 'PRIMARY' ? '22' : '8 4'} /></svg>
+                        <span style={{ fontSize: 7, color: col, letterSpacing: 1 }}>{cls}</span>
+                    </div>
+                ))}
+            </div>
+            {routes.map(r => {
+                const col = LR_COLOR[r.classification] ?? '#fff';
+                return (
+                    <div key={r.id} style={{ marginBottom: 12, padding: '10px 12px', background: T.card, borderRadius: 3, borderLeft: `3px solid ${col}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                            <span style={{ fontSize: 9, color: col, letterSpacing: 1 }}>{r.classification}</span>
+                            <span style={{ fontSize: 7, color: T.muted }}>{r.total_km.toFixed(0)}km · ~{r.estimated_hours.toFixed(1)}h</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: T.text, marginBottom: 4 }}>{r.name}</div>
+                        <div style={{ display: 'flex', gap: 8, fontSize: 8, color: T.sub, flexWrap: 'wrap', marginBottom: r.blocked_reason ? 6 : 0 }}>
+                            <span title="Risk classification">{r.risk_class}</span>
+                            <span>·</span>
+                            <span title="Transport modes">{r.modes.join('+')}</span>
+                            <span>·</span>
+                            <span title="Cold chain capable" style={{ color: r.cold_chain_capable ? T.green : T.muted }}>{r.cold_chain_capable ? '❄ COLD CHAIN' : 'NO COLD CHAIN'}</span>
+                        </div>
+                        {r.blocked_reason && (
+                            <div style={{ fontSize: 8, color: '#ef4444', marginTop: 4, lineHeight: 1.5 }}>⛔ {r.blocked_reason}</div>
+                        )}
+                        {r.waypoints.length > 0 && (
+                            <div style={{ marginTop: 7, borderTop: `1px solid ${T.border}`, paddingTop: 6 }}>
+                                {r.waypoints.slice().sort((a, b) => a.seq - b.seq).map((wp, i) => (
+                                    <div key={wp.id} style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 3 }}>
+                                        <span style={{ color: col, fontSize: 9, width: 10, textAlign: 'center' }}>{i === 0 ? '▶' : i === r.waypoints.length - 1 ? '◼' : '┊'}</span>
+                                        <span style={{ fontSize: 9, color: T.text }}>{wp.name}</span>
+                                        <span style={{ fontSize: 7, color: T.muted, marginLeft: 'auto' }}>{wp.waypoint_type.replace('_', ' ')}</span>
+                                        {wp.operator && <span style={{ fontSize: 7, color: T.sub }}>{wp.operator}</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -507,10 +569,13 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
     const mapDivRef = useRef<HTMLDivElement>(null);
     const viewerRef = useRef<CesiumType.Viewer | null>(null);
     const entityIdsRef = useRef<string[]>([]);
+    const logisticsEntityIdsRef = useRef<string[]>([]);
     const [cesiumReady, setCesiumReady] = useState(false);
     const [corridors, setCorridors] = useState<Corridor[]>(CORRIDORS ?? []);
     const [selId, setSelId] = useState<string | null>(initialSelId ?? null);
-    const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief'>('evidence');
+    const [logisticsRoutes, setLogisticsRoutes] = useState<LogisticsRoute[]>([]);
+    const [showLogistics, setShowLogistics] = useState(true);
+    const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief' | 'logistics'>('evidence');
     const [timeWindow, setTimeWindow] = useState<TimeWindow>('14D');
     const [currentDay, setCurrentDay] = useState(0);
     const [playing, setPlaying] = useState(false);
@@ -529,6 +594,54 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             if (!selId) setSelId(initialSelId);
         }
     }, [CORRIDORS, initialSelId]);
+
+    // Fetch logistics routes whenever selected corridor changes
+    useEffect(() => {
+        if (!selId) { setLogisticsRoutes([]); return; }
+        fetch(`/api/corridors/${selId}/logistics-routes`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setLogisticsRoutes(d?.routes ?? []))
+            .catch(() => setLogisticsRoutes([]));
+    }, [selId]);
+
+    // Draw logistics route polylines on the Cesium map
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+        for (const id of logisticsEntityIdsRef.current) viewer.entities.removeById(id);
+        logisticsEntityIdsRef.current = [];
+        if (!showLogistics || logisticsRoutes.length === 0) return;
+
+        for (const route of logisticsRoutes) {
+            const color = LR_COLOR[route.classification] ?? '#ffffff';
+            const wps = route.waypoints.slice().sort((a, b) => a.seq - b.seq);
+            if (wps.length < 2) continue;
+            const positions = Cesium.Cartesian3.fromDegreesArray(wps.flatMap(w => [w.lng, w.lat]));
+
+            // Glow halo
+            const haloId = `lr-${route.id}-halo`;
+            viewer.entities.add({ id: haloId, polyline: { positions, width: 12, material: Cesium.Color.fromCssColorString(color).withAlpha(0.12), clampToGround: true } });
+            logisticsEntityIdsRef.current.push(haloId);
+
+            // Dashed route line
+            const lineId = `lr-${route.id}-line`;
+            viewer.entities.add({ id: lineId, properties: { kind: 'logistics', routeId: route.id, classification: route.classification, name: route.name },
+                polyline: { positions, width: route.classification === 'PRIMARY' ? 4 : 3, clampToGround: true,
+                    material: new Cesium.PolylineDashMaterialProperty({ color: Cesium.Color.fromCssColorString(color).withAlpha(route.classification === 'BLOCKED' ? 0.5 : 0.9), dashLength: route.classification === 'BLOCKED' ? 10 : 20, dashPattern: route.classification === 'BLOCKED' ? 0xFF00 : 0xFFFF }) } });
+            logisticsEntityIdsRef.current.push(lineId);
+
+            // Waypoint markers
+            for (const wp of wps) {
+                const wpId = `lr-${route.id}-wp-${wp.seq}`;
+                viewer.entities.add({ id: wpId, properties: { kind: 'logistics-wp', name: wp.name, type: wp.waypoint_type, operator: wp.operator },
+                    position: Cesium.Cartesian3.fromDegrees(wp.lng, wp.lat),
+                    point: { pixelSize: wp.waypoint_type === 'final_delivery' || wp.waypoint_type === 'origin' ? 10 : 6, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.fromCssColorString(T.bg), outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+                    label: { text: wp.name, font: '9px "IBM Plex Mono",monospace', fillColor: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.fromCssColorString(T.bg), outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -12), disableDepthTestDistance: Number.POSITIVE_INFINITY, scale: 0.85 } });
+                logisticsEntityIdsRef.current.push(wpId);
+            }
+        }
+    }, [cesiumReady, logisticsRoutes, showLogistics]);
 
     const corridor = corridors.find(c => c.id === selId) ?? corridors[0];
     const rc = corridor ? (RISK[corridor.riskClass] ?? T.muted) : T.muted;
@@ -760,7 +873,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
 
     useEffect(() => { if (cesiumReady) flyToCorridorCamera(); }, [cesiumReady, flyToCorridorCamera]);
 
-    const TABS = [{ k: 'evidence' as const, label: 'EVIDENCE' }, { k: 'cascade' as const, label: 'CASCADE' }, { k: 'scores' as const, label: 'SCORES' }, { k: 'brief' as const, label: 'BRIEF' }];
+    const TABS = [{ k: 'evidence' as const, label: 'EVIDENCE' }, { k: 'cascade' as const, label: 'CASCADE' }, { k: 'scores' as const, label: 'SCORES' }, { k: 'brief' as const, label: 'BRIEF' }, { k: 'logistics' as const, label: 'LOGISTICS' }];
 
     return (
         <>
@@ -800,6 +913,9 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                 </label>
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4 }}>
                                     GAP ANALYSIS <input type="checkbox" checked={showGapAnalysis} onChange={e => setShowGapAnalysis(e.target.checked)} />
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4, color: logisticsRoutes.length > 0 ? T.green : T.muted }}>
+                                    LOGISTICS ROUTES <input type="checkbox" checked={showLogistics} onChange={e => setShowLogistics(e.target.checked)} disabled={logisticsRoutes.length === 0} />
                                 </label>
                             </div>
                         </div>
@@ -844,6 +960,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                             {corridor && tab === 'cascade' && <CascadeTab corridor={corridor} currentDay={currentDay} timeWindow={timeWindow} />}
                             {corridor && tab === 'scores' && <ScoresTab corridor={corridor} />}
                             {corridor && tab === 'brief' && <BriefTab corridor={corridor} />}
+                            {tab === 'logistics' && <LogisticsTab routes={logisticsRoutes} corridorId={selId} />}
                         </div>
                     </div>
                 </div>

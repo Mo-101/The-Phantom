@@ -361,7 +361,6 @@ function TerrainInset({ corridor, ionToken }: TerrainInsetProps) {
             sceneModePicker: false, selectionIndicator: false, timeline: false,
             navigationHelpButton: false, scene3DOnly: true,
             creditContainer: creditDiv, requestRenderMode: false,
-            imageryProvider: false as unknown as CesiumType.ImageryProvider,
             baseLayer: false as unknown as CesiumType.ImageryLayer,
         });
 
@@ -572,8 +571,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                 sceneModePicker: false, selectionIndicator: false, timeline: false,
                 navigationHelpButton: false, scene3DOnly: true,
                 creditContainer: creditDiv, requestRenderMode: false, msaaSamples: 4,
-                // Use a blank provider so Cesium never auto-loads ion base imagery
-                imageryProvider: false as unknown as CesiumType.ImageryProvider,
+                // Use baseLayer: false so Cesium never auto-loads ion base imagery
                 baseLayer: false as unknown as CesiumType.ImageryLayer,
             });
             viewer.imageryLayers.removeAll();

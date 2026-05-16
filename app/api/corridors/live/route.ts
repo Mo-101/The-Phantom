@@ -103,7 +103,7 @@ function buildFromNeon(
     dbRows: DbCorridorRow[],
     nodes: DbNodeRow[],
     evidence: DbEvidenceRow[],
-): ReturnType<typeof buildCorridorShape>[] {
+) {
     return dbRows.map(row => {
         // Find matching static corridor for geometry (pathCoords, engineInput, etc.)
         const staticCor = LIVE_CORRIDORS.find(c => c.id === row.id);
@@ -172,8 +172,6 @@ function buildFromNeon(
     });
 }
 
-// Dummy return type helper for TypeScript
-function buildCorridorShape(_: unknown) { return _ as ReturnType<typeof buildFromNeon>[number]; }
 
 export async function GET() {
     try {

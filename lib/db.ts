@@ -6,12 +6,30 @@ import { neon } from '@neondatabase/serverless';
 
 const connectionString = process.env.DATABASE_URL ?? process.env.NEON_DATABASE_URL;
 
-if (!connectionString) {
-    console.warn('[db] DATABASE_URL is not set — Neon queries will fail at runtime.');
+// Initialise lazily so neon() doesn't throw at module load when DATABASE_URL is
+// absent (e.g. during Next.js static page collection at build time).
+function buildSql() {
+    if (!connectionString) {
+        console.warn('[db] DATABASE_URL is not set — Neon queries will fail at runtime.');
+        return null;
+    }
+    return neon(connectionString);
 }
 
+const _instance = buildSql();
+
 // sql is a tagged-template query function; re-use the single instance across requests.
-export const sql = neon(connectionString ?? '');
+export const sql = new Proxy({} as NonNullable<ReturnType<typeof buildSql>>, {
+    apply(_t, _ctx, args) {
+        if (!_instance) throw new Error('DATABASE_URL is not configured.');
+        return (_instance as unknown as (...a: unknown[]) => unknown)(...args);
+    },
+    get(_t, prop) {
+        if (!_instance) throw new Error('DATABASE_URL is not configured.');
+        const val = (_instance as unknown as Record<string | symbol, unknown>)[prop];
+        return typeof val === 'function' ? val.bind(_instance) : val;
+    },
+}) as NonNullable<ReturnType<typeof buildSql>>;
 
 // ---------------------------------------------------------------------------
 // Typed query helpers used by the live route

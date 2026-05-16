@@ -53,6 +53,7 @@
     "vite.config.ts",
     "src/moscript/**",
     "src/services/**",
-    "src/firebase.ts"
+    "src/firebase.ts",
+    "scripts/**"
   ]
 }

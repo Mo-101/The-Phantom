@@ -43,6 +43,10 @@ interface LogisticsWaypoint { id: string; seq: number; name: string; lat: number
 interface LogisticsRoute { id: string; name: string; classification: 'PRIMARY' | 'ALTERNATE' | 'BLOCKED' | 'CONTINGENCY'; total_km: number; estimated_hours: number; risk_class: string; cold_chain_capable: boolean; blocked_reason: string | null; style_color: string; waypoints: LogisticsWaypoint[]; modes: string[]; purpose: string; }
 const LR_COLOR: Record<string, string> = { PRIMARY: '#22c55e', ALTERNATE: '#f59e0b', BLOCKED: '#ef4444', CONTINGENCY: '#8B7CF8' };
 
+interface DriftDriver { name: string; weight: number; signalCount: number; }
+interface DriftStep { days: number; futureCorridor: { type: 'Feature'; properties: Record<string, number | string>; geometry: { type: 'LineString'; coordinates: number[][] } }; confidence: number; activationLikelihood: number; avgMagnitudeKm: number; bearingDeg: number; drivers: DriftDriver[]; }
+interface DriftData { corridorId: string; steps: DriftStep[]; activationLikelihood: number; confidence: number; avgMagnitudeKm: number; bearingDeg: number; drivers: DriftDriver[]; }
+
 const RUN_ID = 'RUN-20260314-X7Q2';
 
 declare global { interface Window { Cesium: typeof CesiumType; CESIUM_BASE_URL: string; } }
@@ -322,6 +326,58 @@ function LogisticsTab({ routes, corridorId }: { routes: LogisticsRoute[]; corrid
     );
 }
 
+function DriftTab({ drift, corridorId }: { drift: DriftData | null; corridorId: string | null }) {
+    if (!corridorId) return <div style={{ padding: 16, fontSize: 10, color: T.muted }}>NO CORRIDOR SELECTED</div>;
+    if (!drift) return (
+        <div style={{ padding: 16, fontSize: 10, color: T.muted }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, marginBottom: 8 }}>DRIFT PROJECTION</div>
+            <div style={{ color: T.sub }}>Fetching drift analysis…</div>
+        </div>
+    );
+    const alColor = drift.activationLikelihood >= 0.7 ? T.red : drift.activationLikelihood >= 0.5 ? T.amber : T.green;
+    const stepLabels = ['T+3d', 'T+7d', 'T+14d'];
+    const stepOpacity = [0.65, 0.45, 0.25];
+    return (
+        <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.muted, marginBottom: 14 }}>DRIFT PROJECTION · FORWARD INDICATOR</div>
+            {/* Activation likelihood */}
+            <div style={{ padding: '10px 12px', background: `${alColor}0E`, border: `1px solid ${alColor}25`, borderRadius: 3, marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 8, color: T.sub, letterSpacing: 1 }}>ACTIVATION LIKELIHOOD</span>
+                    <span style={{ fontSize: 8, color: alColor, padding: '1px 6px', background: `${alColor}18`, borderRadius: 2 }}>{drift.activationLikelihood >= 0.7 ? 'WARNING' : drift.activationLikelihood >= 0.5 ? 'ELEVATED' : 'NOMINAL'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <Bar value={drift.activationLikelihood} color={alColor} height={6} />
+                    <span style={{ fontSize: 20, color: alColor, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, minWidth: 50 }}>{(drift.activationLikelihood * 100).toFixed(0)}%</span>
+                </div>
+                <div style={{ fontSize: 8, color: T.muted }}>Confidence: {(drift.confidence * 100).toFixed(0)}% · Δ {drift.avgMagnitudeKm.toFixed(1)}km · {drift.bearingDeg.toFixed(0)}°</div>
+            </div>
+            {/* Time steps */}
+            <div style={{ fontSize: 8, letterSpacing: 1.5, color: T.muted, marginBottom: 8 }}>GHOST PROJECTIONS</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+                {drift.steps.map((s, i) => (
+                    <div key={s.days} style={{ flex: 1, padding: '6px 8px', background: T.card, borderRadius: 3, borderLeft: `3px solid ${T.purple}`, opacity: stepOpacity[i] !== undefined ? 0.5 + (stepOpacity[i]!) * 0.5 : 1 }}>
+                        <div style={{ fontSize: 8, color: T.purple, letterSpacing: 1 }}>{stepLabels[i]}</div>
+                        <div style={{ fontSize: 9, color: T.text }}>{(s.confidence * 100).toFixed(0)}% conf</div>
+                        <div style={{ fontSize: 7, color: T.sub }}>Δ {s.avgMagnitudeKm.toFixed(1)}km</div>
+                    </div>
+                ))}
+            </div>
+            {/* Drivers */}
+            <div style={{ fontSize: 8, letterSpacing: 1.5, color: T.muted, marginBottom: 8 }}>PHYSICS DRIVERS</div>
+            {drift.drivers.map(d => (
+                <div key={d.name} style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontSize: 9, color: T.sub }}>{d.name}</span>
+                        <span style={{ fontSize: 9, color: d.weight >= 0.3 ? T.amber : T.muted }}>{d.weight.toFixed(2)}{d.signalCount > 0 ? ` · ${d.signalCount}sig` : ''}</span>
+                    </div>
+                    <Bar value={d.weight} color={d.weight >= 0.3 ? T.amber : T.muted} height={3} />
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ---------------------------------------------------------------------------
 // TerrainInset — picture-in-picture Cesium viewer showing elevation/slope/aspect
 // shading with contour lines and the corridor footprint polygon clamped to
@@ -570,12 +626,15 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
     const viewerRef = useRef<CesiumType.Viewer | null>(null);
     const entityIdsRef = useRef<string[]>([]);
     const logisticsEntityIdsRef = useRef<string[]>([]);
+    const driftEntityIdsRef = useRef<string[]>([]);
     const [cesiumReady, setCesiumReady] = useState(false);
     const [corridors, setCorridors] = useState<Corridor[]>(CORRIDORS ?? []);
     const [selId, setSelId] = useState<string | null>(initialSelId ?? null);
     const [logisticsRoutes, setLogisticsRoutes] = useState<LogisticsRoute[]>([]);
     const [showLogistics, setShowLogistics] = useState(true);
-    const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief' | 'logistics'>('evidence');
+    const [driftData, setDriftData] = useState<DriftData | null>(null);
+    const [showDrift, setShowDrift] = useState(true);
+    const [tab, setTab] = useState<'evidence' | 'cascade' | 'scores' | 'brief' | 'logistics' | 'drift'>('evidence');
     const [timeWindow, setTimeWindow] = useState<TimeWindow>('14D');
     const [currentDay, setCurrentDay] = useState(0);
     const [playing, setPlaying] = useState(false);
@@ -602,6 +661,16 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             .then(r => r.ok ? r.json() : null)
             .then(d => setLogisticsRoutes(d?.routes ?? []))
             .catch(() => setLogisticsRoutes([]));
+    }, [selId]);
+
+    // Fetch drift projection whenever selected corridor changes
+    useEffect(() => {
+        if (!selId) { setDriftData(null); return; }
+        setDriftData(null);
+        fetch(`/api/corridors/${selId}/drift`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setDriftData(d ?? null))
+            .catch(() => setDriftData(null));
     }, [selId]);
 
     // Draw logistics route polylines on the Cesium map
@@ -642,6 +711,55 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
             }
         }
     }, [cesiumReady, logisticsRoutes, showLogistics]);
+
+    // Draw drift ghost lines on the Cesium map
+    useEffect(() => {
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed() || !cesiumReady || !window.Cesium) return;
+        const Cesium = window.Cesium;
+        for (const id of driftEntityIdsRef.current) viewer.entities.removeById(id);
+        driftEntityIdsRef.current = [];
+        if (!showDrift || !driftData) return;
+
+        // T+3, T+7, T+14 — decreasing opacity, dashed ghost style
+        const STEP_STYLES = [
+            { opacity: driftData.confidence * 0.65, width: 5 },
+            { opacity: driftData.confidence * 0.45, width: 4 },
+            { opacity: driftData.confidence * 0.25, width: 3 },
+        ];
+
+        for (let i = 0; i < driftData.steps.length; i++) {
+            const step = driftData.steps[i]!;
+            const style = STEP_STYLES[i]!;
+            const coords = step.futureCorridor.geometry.coordinates;
+            if (coords.length < 2) continue;
+
+            const positions = Cesium.Cartesian3.fromDegreesArray(
+                coords.flatMap(c => [c[0] as number, c[1] as number])
+            );
+
+            // Soft halo
+            const haloId = `drift-${step.days}d-halo`;
+            viewer.entities.add({ id: haloId, polyline: { positions, width: style.width + 10, material: Cesium.Color.fromCssColorString(T.purple).withAlpha(style.opacity * 0.18), clampToGround: true } });
+            driftEntityIdsRef.current.push(haloId);
+
+            // Dashed ghost corridor line
+            const lineId = `drift-${step.days}d-line`;
+            viewer.entities.add({
+                id: lineId,
+                properties: { kind: 'drift', days: step.days },
+                polyline: {
+                    positions, width: style.width, clampToGround: true,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: Cesium.Color.fromCssColorString(T.purple).withAlpha(style.opacity),
+                        dashLength: 18,
+                        dashPattern: 0xFF00,
+                    }),
+                },
+            });
+            driftEntityIdsRef.current.push(lineId);
+        }
+    }, [cesiumReady, driftData, showDrift]);
 
     const corridor = corridors.find(c => c.id === selId) ?? corridors[0];
     const rc = corridor ? (RISK[corridor.riskClass] ?? T.muted) : T.muted;
@@ -736,6 +854,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                         return;
                     }
                     if (kind === 'corridor') { const cid = (props?.corridorId?.getValue() as string) ?? eid.split('-track-')[0]; setHoverInfo({ x: mv.endPosition.x, y: mv.endPosition.y, title: cid, subtitle: 'CORRIDOR TRACK', color: T.sub }); return; }
+                    if (kind === 'drift') { const days = props?.days?.getValue() as number; setHoverInfo({ x: mv.endPosition.x, y: mv.endPosition.y, title: `T+${days}d GHOST`, subtitle: 'DRIFT PROJECTION', color: T.purple, details: [{ label: 'STEP', value: `+${days} days` }] }); return; }
                 }
                 setHoverInfo(null);
             }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
@@ -873,7 +992,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
 
     useEffect(() => { if (cesiumReady) flyToCorridorCamera(); }, [cesiumReady, flyToCorridorCamera]);
 
-    const TABS = [{ k: 'evidence' as const, label: 'EVIDENCE' }, { k: 'cascade' as const, label: 'CASCADE' }, { k: 'scores' as const, label: 'SCORES' }, { k: 'brief' as const, label: 'BRIEF' }, { k: 'logistics' as const, label: 'LOGISTICS' }];
+    const TABS = [{ k: 'evidence' as const, label: 'EVIDENCE' }, { k: 'cascade' as const, label: 'CASCADE' }, { k: 'scores' as const, label: 'SCORES' }, { k: 'brief' as const, label: 'BRIEF' }, { k: 'logistics' as const, label: 'LOGISTICS' }, { k: 'drift' as const, label: 'DRIFT' }];
 
     return (
         <>
@@ -917,6 +1036,9 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4, color: logisticsRoutes.length > 0 ? T.green : T.muted }}>
                                     LOGISTICS ROUTES <input type="checkbox" checked={showLogistics} onChange={e => setShowLogistics(e.target.checked)} disabled={logisticsRoutes.length === 0} />
                                 </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginTop: 4, color: driftData ? T.purple : T.muted }}>
+                                    DRIFT PROJECTION <input type="checkbox" checked={showDrift} onChange={e => setShowDrift(e.target.checked)} />
+                                </label>
                             </div>
                         </div>
                     )}
@@ -947,7 +1069,17 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                         {corridor && (
                             <div style={{ padding: '10px 13px', borderBottom: `1px solid ${T.border}` }}>
                                 <div style={{ fontSize: 13, color: rc, letterSpacing: 2 }}>{corridor.id}</div>
-                                <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{(corridor.score ?? 0).toFixed(4)}</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ fontSize: 11, color: T.text, fontWeight: 700 }}>{(corridor.score ?? 0).toFixed(4)}</div>
+                                    {driftData && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }} onClick={() => setTab('drift')} title="Open Drift tab">
+                                            <span style={{ fontSize: 7, color: T.muted, letterSpacing: 1 }}>ACT.LIKE</span>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: driftData.activationLikelihood >= 0.7 ? T.red : driftData.activationLikelihood >= 0.5 ? T.amber : T.purple }}>
+                                                {(driftData.activationLikelihood * 100).toFixed(0)}%
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                         <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}` }}>
@@ -961,6 +1093,7 @@ export default function PhantomMap({ CORRIDORS, initialSelId }: PhantomMapProps)
                             {corridor && tab === 'scores' && <ScoresTab corridor={corridor} />}
                             {corridor && tab === 'brief' && <BriefTab corridor={corridor} />}
                             {tab === 'logistics' && <LogisticsTab routes={logisticsRoutes} corridorId={selId} />}
+                            {tab === 'drift' && <DriftTab drift={driftData} corridorId={selId} />}
                         </div>
                     </div>
                 </div>

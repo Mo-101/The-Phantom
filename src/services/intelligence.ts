@@ -28,6 +28,168 @@ export type EvidenceType =
 
 export type RiskClass = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+// ═══════════════════════════════════════════════════════════════
+// Phantom Corridor Memory Doctrine v1
+// A corridor is not an event. A corridor is a memory-bearing geographic intelligence object.
+// 
+// Signal → Activation → Corridor Memory → Reactivation → Institutional Knowledge
+// ═══════════════════════════════════════════════════════════════
+
+// LAYER 1 — 6-State Memory Model
+export type CorridorMemoryState =
+  | 'REFERENCE'      // Historical activation exists, no current activation
+  | 'HYPOTHESIS'     // Signal cluster detected, activation threshold not met
+  | 'REALTIME'       // Live evidence only, no baseline required
+  | 'HYBRID'         // Historical corridor reactivated (reference + live)
+  | 'FIELD_CONFIRMED'// Ground verification (analyst/partner/field team)
+  | 'ARCHIVED';      // Inactive memory, retained for learning
+
+export type CorridorDecision =
+  | 'HYBRID_REACTIVATION'
+  | 'NEW_REALTIME_CORRIDOR'
+  | 'POSSIBLE_BASELINE_CORRELATION'
+  | 'INSUFFICIENT_EVIDENCE'
+  | 'HYPOTHESIS_UPGRADE'
+  | 'FIELD_CONFIRMATION_REQUIRED';
+
+export type CorridorEvidenceClass =
+  | 'HISTORICAL_BASELINE'
+  | 'LIVE_SIGNAL'
+  | 'FIELD_CONFIRMED'
+  | 'MODEL_INFERRED'
+  | 'HYPOTHESIS';
+
+// LAYER 3 — Extended Match Intelligence
+export interface BaselineMatchMetadata {
+  baselineId: string;
+  similarity: number;
+  spatialSimilarity: number;
+  diseaseSimilarity: number;
+  temporalSimilarity: number;
+  activationHistorySimilarity: number;  // Frequency pattern match
+  scoringAlgorithmVersion: string;
+  computedAt: string;
+  decision: CorridorDecision;
+  confidence: number;
+  baselineActivationCount: number;
+  baselineLastActivation: string;
+  baselineTypicalSeasons: string[];
+  hybridThreshold: number;
+  realtimeThreshold: number;
+  hypothesisThreshold: number;
+}
+
+// LAYER 2 — Activation Hierarchy
+export interface CorridorActivation {
+  activationId: string;
+  sequence: number;
+  startedAt: string;
+  endedAt?: string;
+  durationHours?: number;
+  state: CorridorMemoryState;
+  previousState?: CorridorMemoryState;
+  signalCount: number;
+  evidenceClass: CorridorEvidenceClass;
+  corridorScore: number;
+  riskClass: RiskClass;
+  activationDrivers: string[];
+  matchedBaselineId?: string;
+  similarityToBaseline?: number;
+}
+
+// LAYER 5 — Explainability
+export interface CorridorExplainability {
+  activationDrivers: string[];
+  driverWeights: Record<string, number>;
+  soulScores: {
+    gravity: number;
+    diffusion: number;
+    centrality: number;
+    hmm: number;
+    seasonal: number;
+    linguistic: number;
+    entropy: number;
+    friction: number;
+  };
+  baselineComparison?: {
+    baselineId: string;
+    baselineName: string;
+    similarity: number;
+    comparedAt: string;
+  };
+  signalBreakdown: {
+    acled: number;
+    dtm: number;
+    dhis2: number;
+    sentinel: number;
+    manual: number;
+  };
+  confidenceIntervals: {
+    scoreLower: number;
+    scoreUpper: number;
+    predictionHorizon: number;
+  };
+}
+
+// LAYER 8 — Staleness Configuration
+export const STALENESS_CONFIG = {
+  REALTIME: { timeoutHours: 168, warningHours: 120 },      // 7 days
+  HYBRID: { timeoutHours: 336, warningHours: 264 },      // 14 days
+  HYPOTHESIS: { timeoutHours: 72, warningHours: 48 },     // 3 days
+  FIELD_CONFIRMED: { timeoutHours: 720, warningHours: 600 }, // 30 days
+} as const;
+
+// LAYER 7 — Mode Governance (Legal Transitions)
+export const LEGAL_STATE_TRANSITIONS: Record<CorridorMemoryState, CorridorMemoryState[]> = {
+  REFERENCE: ['HYPOTHESIS', 'HYBRID'],
+  HYPOTHESIS: ['REALTIME', 'HYBRID', 'ARCHIVED'],
+  REALTIME: ['HYBRID', 'FIELD_CONFIRMED', 'ARCHIVED'],
+  HYBRID: ['FIELD_CONFIRMED', 'ARCHIVED'],
+  FIELD_CONFIRMED: ['ARCHIVED'],
+  ARCHIVED: [], // Terminal state
+};
+
+export function isLegalTransition(
+  from: CorridorMemoryState,
+  to: CorridorMemoryState
+): boolean {
+  return LEGAL_STATE_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+// UI Status Labels for honest corridor display (6-State Model)
+export const CORRIDOR_UI_LABELS: Record<CorridorMemoryState, { status: string; description: string; icon: string }> = {
+  REFERENCE: {
+    status: 'REFERENCE CORRIDOR',
+    description: 'Historical pattern available — awaiting live confirmation',
+    icon: '📚'
+  },
+  HYPOTHESIS: {
+    status: 'HYPOTHESIS',
+    description: 'Signal cluster detected — activation threshold not met',
+    icon: '🔍'
+  },
+  REALTIME: {
+    status: 'REALTIME DETECTION',
+    description: 'New corridor detected from live signals only',
+    icon: '⚡'
+  },
+  HYBRID: {
+    status: 'HYBRID ACTIVE',
+    description: 'Historical corridor reactivated by live evidence',
+    icon: '🔥'
+  },
+  FIELD_CONFIRMED: {
+    status: 'FIELD CONFIRMED',
+    description: 'Ground verification completed',
+    icon: '✓'
+  },
+  ARCHIVED: {
+    status: 'ARCHIVED',
+    description: 'Inactive memory — retained for historical learning',
+    icon: '🗄️'
+  }
+};
+
 export enum LandCover {
   OPEN_GROUND = 'open_ground',
   SPARSE_VEG = 'sparse_vegetation',
@@ -107,6 +269,43 @@ export interface CorridorScore {
   corridorScore: number;
   riskClass: RiskClass;
   latentState: CorridorState;
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Phantom Corridor Memory Doctrine v1 — 6-State Model
+  // ═══════════════════════════════════════════════════════════════
+  state: CorridorMemoryState;
+  previousState?: CorridorMemoryState;
+  stateChangedAt?: string;
+  evidenceClass: CorridorEvidenceClass;
+  
+  // Temporal tracking
+  firstObservedAt?: string;
+  lastLiveSignalAt?: string;
+  activationStartedAt?: string;
+  expiresAt?: string;
+  archivedAt?: string;
+  
+  // Signal metrics
+  liveSignalCount?: number;
+  totalHistoricalSignals?: number;
+  activationCount?: number;
+  
+  // Baseline match
+  matchedBaselineId?: string;
+  similarityToBaseline?: number;
+  historicalDiseasePattern?: string[];
+  typicalSeasons?: string[];
+  lastHistoricalActivity?: string;
+  
+  // Explainability
+  activationDrivers?: string[];
+  
+  // Governance
+  reviewRequired?: boolean;
+  sealedBy?: string;
+  sealedAt?: string;
+  
+  // 8-Soul Scoring Dimensions
   gravityScore: number;
   diffusionScore: number;
   centralityScore: number;
@@ -858,6 +1057,11 @@ export class ExplainabilityEngine {
       evidenceCount: params.evidence.length,
     });
 
+    // Phantom Corridor Memory Doctrine v1 — 6-State Model
+    const memoryState: CorridorMemoryState = (params as any).state || 'REALTIME';
+    const baselineEvidenceClass: CorridorEvidenceClass = (params as any).evidenceClass || 'LIVE_SIGNAL';
+    // 'now' already declared at line 1026
+
     return {
       runId: params.runId,
       corridorId: params.corridorId,
@@ -866,6 +1070,34 @@ export class ExplainabilityEngine {
       corridorScore: Math.round(corridorScore * 10000) / 10000,
       riskClass,
       latentState,
+      // Phantom Corridor Memory Doctrine v1 — 6-State Model
+      state: memoryState,
+      previousState: (params as any).previousState,
+      stateChangedAt: now,
+      evidenceClass: baselineEvidenceClass,
+      // Temporal tracking
+      firstObservedAt: (params as any).firstObservedAt || now,
+      lastLiveSignalAt: now,
+      activationStartedAt: (params as any).activationStartedAt,
+      expiresAt: (params as any).expiresAt,
+      archivedAt: (params as any).archivedAt,
+      // Signal metrics
+      liveSignalCount: (params as any).liveSignalCount || params.evidence.length,
+      totalHistoricalSignals: (params as any).totalHistoricalSignals || 0,
+      activationCount: (params as any).activationCount || 0,
+      // Baseline match
+      matchedBaselineId: (params as any).matchedBaselineId,
+      similarityToBaseline: (params as any).similarityToBaseline,
+      historicalDiseasePattern: (params as any).historicalDiseasePattern,
+      typicalSeasons: (params as any).typicalSeasons,
+      lastHistoricalActivity: (params as any).lastHistoricalActivity,
+      // Explainability
+      activationDrivers: (params as any).activationDrivers,
+      // Governance
+      reviewRequired: (params as any).reviewRequired || false,
+      sealedBy: (params as any).sealedBy,
+      sealedAt: now,
+      // 8-Soul Scoring Dimensions
       gravityScore,
       diffusionScore,
       centralityScore,

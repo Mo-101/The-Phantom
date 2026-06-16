@@ -159,6 +159,8 @@ export async function drawCorridors(ctx: MapboxDrawContext): Promise<DrawCorrido
     ITURI_LAYER_ID,
     KOBOKO_ARUA_PHANTOM_HALO_LAYER_ID,
     KOBOKO_ARUA_PHANTOM_LAYER_ID,
+    "dark-candidate-points-circle",
+    "dark-candidate-points-labels",
     "phantom-corridor-labels",
     "formal-routes-halo",
     "formal-routes-line",
@@ -175,6 +177,7 @@ export async function drawCorridors(ctx: MapboxDrawContext): Promise<DrawCorrido
   const staticCorridorSourceIds = [
     "ituri-crisis-corridor",
     "koboko-arua-phantom",
+    "dark-candidate-points",
     "phantom-labels",
     "formal-routes",
     "formal-labels",
@@ -790,6 +793,63 @@ export async function drawCorridors(ctx: MapboxDrawContext): Promise<DrawCorrido
     },
   });
 
+  // ── 4. Dark Candidate points (unresolved amber pulse) ──
+  const auraCandidateFeature: GeoJSON.Feature<GeoJSON.Point> = {
+    type: "Feature",
+    properties: {
+      id: "DARK-2026-001",
+      name: "DARK HYPOTHESIS · PROBING · FIELD PENDING",
+      risk_class: "MEDIUM"
+    },
+    geometry: {
+      type: "Point",
+      coordinates: [31.25, 3.55] // Yumbe/Aura coordinates
+    }
+  };
+
+  map.addSource("dark-candidate-points", {
+    type: "geojson",
+    data: auraCandidateFeature
+  });
+
+  map.addLayer({
+    id: "dark-candidate-points-circle",
+    type: "circle",
+    source: "dark-candidate-points",
+    paint: {
+      "circle-radius": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        4, 8,
+        10, 14
+      ],
+      "circle-color": "#F59E0B", // Amber
+      "circle-stroke-color": "#070A10",
+      "circle-stroke-width": 2,
+      "circle-opacity": 0.85
+    }
+  });
+
+  map.addLayer({
+    id: "dark-candidate-points-labels",
+    type: "symbol",
+    source: "dark-candidate-points",
+    layout: {
+      "text-field": ["get", "name"],
+      "text-font": ["Open Sans Bold"],
+      "text-size": 10,
+      "text-offset": [0, 1.8],
+      "text-anchor": "top",
+      "text-allow-overlap": false
+    },
+    paint: {
+      "text-color": "#F59E0B", // Amber
+      "text-halo-color": "#070A10",
+      "text-halo-width": 2
+    }
+  });
+
   // ── Compute real coverage stats ──
   let totalPhantomKm = ITURI_CRISIS_CORRIDOR.totalKm + KOBOKO_ARUA_KM;
   let weightedCoverage = 0;
@@ -830,6 +890,8 @@ export let CORRIDOR_LAYER_IDS: string[] = [];
 export function setCorridorLayerIds(phantomIds: string[]) {
   CORRIDOR_LAYER_IDS = [
     ...phantomIds,
+    "dark-candidate-points-circle",
+    "dark-candidate-points-labels",
     "phantom-corridor-labels",
     "formal-routes-halo",
     "formal-routes-line",

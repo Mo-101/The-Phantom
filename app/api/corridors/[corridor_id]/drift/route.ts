@@ -184,9 +184,9 @@ const STATIC: Record<string, { riskClass: string; pathCoords: { lat: number; lng
 // ── GET /api/corridors/[corridor_id]/drift ─────────────────────────────────────
 export async function GET(
     _req: Request,
-    { params }: { params: { corridor_id: string } }
+    { params }: { params: Promise<{ corridor_id: string }> }
 ) {
-    const { corridor_id } = params;
+    const { corridor_id } = await params;
     const def = STATIC[corridor_id];
     if (!def) return NextResponse.json({ error: `Corridor ${corridor_id} not found` }, { status: 404 });
 

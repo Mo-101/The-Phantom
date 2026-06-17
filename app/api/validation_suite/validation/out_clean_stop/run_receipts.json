@@ -1,0 +1,7 @@
+{
+  "reason": "manifests/signals_manifest.jsonl missing or not validated",
+  "run_id": "gallabat-metema-v1",
+  "status": "CLEAN_STOP_NO_MANIFEST",
+  "transition_log_written": false,
+  "verdict": null
+}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
-import type { EvidenceType } from '@/src/services/intelligence';
+import type { EvidenceType } from '@/services/intelligence';
 
 export async function POST(req: NextRequest) {
   const env = serverEnv();
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Import intelligence engine (server-only)
-    const { ExplainabilityEngine } = await import('@/src/services/intelligence');
+    const { ExplainabilityEngine } = await import('@/services/intelligence');
 
     let liveSignals: string[] = [];
     let liveEvidence: Array<{
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const { CorridorService } = await import('@/src/services/corridor');
+    const { CorridorService } = await import('@/services/corridor');
     const service = new CorridorService();
     const items = await service.getAllCorridors();
 

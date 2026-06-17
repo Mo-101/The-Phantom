@@ -1,0 +1,17 @@
+closure_taxonomy:
+  - border closed
+  - crossing closed
+  - trade halted
+  - travel halted
+  - security closure
+  - seized crossing
+  - armed control
+  - full closure
+
+recovery_taxonomy:
+  - reopened
+  - reopening
+  - resumed
+  - crossing restored
+  - traffic resumed
+  - humanitarian access restored

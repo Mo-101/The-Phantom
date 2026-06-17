@@ -6,7 +6,7 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, Cell, PieChart, Pie,
 } from 'recharts';
 
-// ---- Design tokens (matches PhantomMap) ----------------------------
+// ---- Design tokens (matches Phantom dashboard) ----------------------------
 const T = {
   bg: '#070A10',
   surf: '#0D1020',

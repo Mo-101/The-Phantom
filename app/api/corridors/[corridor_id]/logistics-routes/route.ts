@@ -163,9 +163,9 @@ function buildRecommendationSummary(routes: LogisticsRoute[]): string {
 
 export async function GET(
   _req: Request,
-  { params }: { params: { corridor_id: string } }
+  { params }: { params: Promise<{ corridor_id: string }> }
 ) {
-  const { corridor_id } = params;
+  const { corridor_id } = await params;
   try {
     const routes = await fetchRoutesWithWaypoints(corridor_id);
 

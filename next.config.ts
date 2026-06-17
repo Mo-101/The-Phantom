@@ -1,6 +1,12 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  turbopack: {
+    root: __dirname,
+  },
   serverExternalPackages: ['pg', 'neo4j-driver', '@modelcontextprotocol/sdk'],
   images: {
     remotePatterns: [

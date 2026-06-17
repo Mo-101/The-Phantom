@@ -68,6 +68,8 @@ def extract_geojson(surface: ProbabilitySurface, meta: dict) -> dict:
                 "latCenter": round(cell.lat_center, 4),
                 "lngCenter": round(cell.lng_center, 4),
                 "posterior": round(cell.posterior, 4),
+                "qBaseline": round(cell.q_baseline, 4),
+                "contributingSources": list(cell.contributing_sources),
                 "evidenceCount": cell.evidence_count,
                 "lastEvidenceAt": int(cell.last_evidence_at * 1000) if cell.last_evidence_at else None
             }

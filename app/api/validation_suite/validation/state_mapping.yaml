@@ -1,0 +1,9 @@
+ground_truth_categories:
+  active:
+    - ACTIVE
+  elevated_risk:
+    - WATCH
+  disrupted:
+    - DISRUPTED
+  recovery:
+    - RECOVERING

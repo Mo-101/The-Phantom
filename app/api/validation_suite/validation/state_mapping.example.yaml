@@ -1,0 +1,21 @@
+# Copy this to state_mapping.yaml before lock and replace with actual Phantom states.
+# After lock, do not edit.
+
+ground_truth_categories:
+  active:
+    - ACTIVE
+    - ACTIVE_CROSSING
+    - NORMAL
+  elevated_risk:
+    - WATCH
+    - STRESSED
+    - DISSIPATING
+    - PRESSURIZED
+  disrupted:
+    - DISRUPTED
+    - CLOSED
+    - DORMANT
+    - BLOCKED
+  recovery:
+    - REOPENING
+    - RECOVERING

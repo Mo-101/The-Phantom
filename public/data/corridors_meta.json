@@ -1,0 +1,206 @@
+[
+  {
+    "id": "C-CD-001",
+    "name": "Mbandaka \u2192 Impfondo",
+    "risk": "CRITICAL",
+    "km": 190,
+    "mode": "foot",
+    "center": [
+      18.157600000000002,
+      0.8329000000000001
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-CD-002",
+    "name": "Gbadolite \u2192 Bangui",
+    "risk": "HIGH",
+    "km": 280,
+    "mode": "foot",
+    "center": [
+      19.78145,
+      4.33455
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-CD-005",
+    "name": "Cazombo \u2192 Kazumba",
+    "risk": "CRITICAL",
+    "km": 120,
+    "mode": "foot",
+    "center": [
+      21.75,
+      -6.54165
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-CD-006",
+    "name": "Luiza \u2192 Dilolo",
+    "risk": "HIGH",
+    "km": 80,
+    "mode": "foot",
+    "center": [
+      22.25,
+      -6.1
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-CF-001",
+    "name": "Birao \u2192 Nyala",
+    "risk": "CRITICAL",
+    "km": 300,
+    "mode": "foot",
+    "center": [
+      23.8333,
+      11.16665
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-ET-001",
+    "name": "Gambela \u2192 Malakal",
+    "risk": "CRITICAL",
+    "km": 280,
+    "mode": "foot",
+    "center": [
+      33.1219,
+      8.8917
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-ET-002",
+    "name": "Dolo Ado \u2192 Baidoa",
+    "risk": "HIGH",
+    "km": 210,
+    "mode": "foot",
+    "center": [
+      42.8625,
+      3.6492
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-ET-003",
+    "name": "Humera \u2192 Kassala",
+    "risk": "HIGH",
+    "km": 155,
+    "mode": "foot",
+    "center": [
+      36.50835,
+      14.85835
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-GL-001",
+    "name": "Goma \u2192 Gisenyi",
+    "risk": "CRITICAL",
+    "km": 4,
+    "mode": "foot",
+    "center": [
+      29.2424,
+      -1.6834069156437743
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-NG-001",
+    "name": "Baga \u2192 Diffa",
+    "risk": "CRITICAL",
+    "km": 147,
+    "mode": "foot",
+    "center": [
+      13.26675,
+      13.045950000000001
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-NG-002",
+    "name": "Gwoza \u2192 Mora",
+    "risk": "HIGH",
+    "km": 52,
+    "mode": "foot",
+    "center": [
+      13.91655,
+      11.064699999999998
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-NG-003",
+    "name": "Banki \u2192 Amchide",
+    "risk": "MEDIUM",
+    "km": 10,
+    "mode": "foot",
+    "center": [
+      13.588224107443875,
+      11.00375
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-SD-001",
+    "name": "Metema \u2192 Gallabat",
+    "risk": "HIGH",
+    "km": 8,
+    "mode": "foot",
+    "center": [
+      36.175,
+      12.96335
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-SO-003",
+    "name": "Bossaso \u2192 Aden",
+    "risk": "CRITICAL",
+    "km": 280,
+    "mode": "foot",
+    "center": [
+      47.099050000000005,
+      12.03495
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-SS-001",
+    "name": "Yambio \u2192 Bangui",
+    "risk": "CRITICAL",
+    "km": 527,
+    "mode": "foot",
+    "center": [
+      23.47075,
+      4.480700000000001
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-SS-002",
+    "name": "Renk \u2192 Ed Damazin",
+    "risk": "HIGH",
+    "km": 175,
+    "mode": "foot",
+    "center": [
+      33.575,
+      11.75835
+    ],
+    "zoom": 7
+  },
+  {
+    "id": "C-SS-003",
+    "name": "Kapoeta \u2192 Lodwar",
+    "risk": "MEDIUM",
+    "km": 245,
+    "mode": "foot",
+    "center": [
+      34.5854,
+      3.94405
+    ],
+    "zoom": 7
+  }
+]

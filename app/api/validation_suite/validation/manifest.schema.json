@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phantom POE Signal Manifest Line",
+  "type": "object",
+  "required": [
+    "signal_id",
+    "source",
+    "event_date",
+    "pub_date",
+    "license_basis",
+    "retrieved",
+    "sha256",
+    "corridor_match"
+  ],
+  "properties": {
+    "signal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "pub_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "license_basis": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retrieved": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "corridor_match": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload_path": {
+      "type": "string"
+    },
+    "source_url": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

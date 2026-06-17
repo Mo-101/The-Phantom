@@ -1,0 +1,328 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "C-CD-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          18.157600000000002,
+          0.8329000000000001
+        ]
+      },
+      "properties": {
+        "id": "C-CD-001",
+        "name": "Mbandaka → Impfondo",
+        "risk": "CRITICAL",
+        "km": 190,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-CD-002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.78145,
+          4.33455
+        ]
+      },
+      "properties": {
+        "id": "C-CD-002",
+        "name": "Gbadolite → Bangui",
+        "risk": "HIGH",
+        "km": 280,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-CD-005",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          21.75,
+          -6.54165
+        ]
+      },
+      "properties": {
+        "id": "C-CD-005",
+        "name": "Cazombo → Kazumba",
+        "risk": "CRITICAL",
+        "km": 120,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-CD-006",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.25,
+          -6.1
+        ]
+      },
+      "properties": {
+        "id": "C-CD-006",
+        "name": "Luiza → Dilolo",
+        "risk": "HIGH",
+        "km": 80,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-CF-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.8333,
+          11.16665
+        ]
+      },
+      "properties": {
+        "id": "C-CF-001",
+        "name": "Birao → Nyala",
+        "risk": "CRITICAL",
+        "km": 300,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-ET-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          33.1219,
+          8.8917
+        ]
+      },
+      "properties": {
+        "id": "C-ET-001",
+        "name": "Gambela → Malakal",
+        "risk": "CRITICAL",
+        "km": 280,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-ET-002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          42.8625,
+          3.6492
+        ]
+      },
+      "properties": {
+        "id": "C-ET-002",
+        "name": "Dolo Ado → Baidoa",
+        "risk": "HIGH",
+        "km": 210,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-ET-003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          36.50835,
+          14.85835
+        ]
+      },
+      "properties": {
+        "id": "C-ET-003",
+        "name": "Humera → Kassala",
+        "risk": "HIGH",
+        "km": 155,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-GL-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          29.2424,
+          -1.6834069156437743
+        ]
+      },
+      "properties": {
+        "id": "C-GL-001",
+        "name": "Goma → Gisenyi",
+        "risk": "CRITICAL",
+        "km": 4,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-NG-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.26675,
+          13.045950000000001
+        ]
+      },
+      "properties": {
+        "id": "C-NG-001",
+        "name": "Baga → Diffa",
+        "risk": "CRITICAL",
+        "km": 147,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-NG-002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.91655,
+          11.064699999999998
+        ]
+      },
+      "properties": {
+        "id": "C-NG-002",
+        "name": "Gwoza → Mora",
+        "risk": "HIGH",
+        "km": 52,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-NG-003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.588224107443875,
+          11.00375
+        ]
+      },
+      "properties": {
+        "id": "C-NG-003",
+        "name": "Banki → Amchide",
+        "risk": "MEDIUM",
+        "km": 10,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-SD-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          36.175,
+          12.96335
+        ]
+      },
+      "properties": {
+        "id": "C-SD-001",
+        "name": "Metema → Gallabat",
+        "risk": "HIGH",
+        "km": 8,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-SO-003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          47.099050000000005,
+          12.03495
+        ]
+      },
+      "properties": {
+        "id": "C-SO-003",
+        "name": "Bossaso → Aden",
+        "risk": "CRITICAL",
+        "km": 280,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-SS-001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.47075,
+          4.480700000000001
+        ]
+      },
+      "properties": {
+        "id": "C-SS-001",
+        "name": "Yambio → Bangui",
+        "risk": "CRITICAL",
+        "km": 527,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-SS-002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          33.575,
+          11.75835
+        ]
+      },
+      "properties": {
+        "id": "C-SS-002",
+        "name": "Renk → Ed Damazin",
+        "risk": "HIGH",
+        "km": 175,
+        "mode": "foot",
+        "zoom": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "C-SS-003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.5854,
+          3.94405
+        ]
+      },
+      "properties": {
+        "id": "C-SS-003",
+        "name": "Kapoeta → Lodwar",
+        "risk": "MEDIUM",
+        "km": 245,
+        "mode": "foot",
+        "zoom": 7
+      }
+    }
+  ]
+}

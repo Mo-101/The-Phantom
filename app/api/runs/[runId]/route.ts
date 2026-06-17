@@ -3,12 +3,12 @@ import { serverEnv, validateMode } from '@/lib/env';
 
 export async function GET(
     _req: NextRequest,
-    { params }: { params: { runId: string } }
+    { params }: { params: Promise<{ runId: string }> }
 ) {
     try {
         validateMode('graph');
         const env = serverEnv();
-        const { runId } = params;
+        const { runId } = await params;
 
         if (!runId) {
             return NextResponse.json({ ok: false, error: 'runId is required' }, { status: 400 });

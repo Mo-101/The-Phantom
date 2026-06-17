@@ -966,6 +966,7 @@ export function useMapboxMap(containerRef: React.RefObject<HTMLDivElement | null
       pollLatencyMs: heartbeat.status.pollLatencyMs,
       dataFreshnessSeconds: heartbeat.status.dataFreshnessSeconds,
       errorMessage: heartbeat.status.errorMessage,
+      sources: heartbeat.status.data?.sources,
     },
     refreshLiveData: heartbeat.refresh,
     isCascadeEnabled: mode === "historical",

@@ -23,9 +23,9 @@ import { sql } from '@/lib/db';
  */
 export async function POST(
   _req: Request,
-  { params }: { params: { corridor_id: string } }
+  { params }: { params: Promise<{ corridor_id: string }> }
 ) {
-  const { corridor_id } = params;
+  const { corridor_id } = await params;
   const queuedAt = new Date().toISOString();
 
   try {

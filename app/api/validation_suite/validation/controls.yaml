@@ -1,0 +1,29 @@
+primary:
+  corridor_id: C-SD-001
+  name: "Metema-Gallabat"
+  country_pair: ["Ethiopia", "Sudan"]
+  expected_event:
+    class: "security_closure"
+    closure_date: "2024-09-01"
+    reopen_date: "2024-10-21"
+    detection_window_start: "2024-08-25"
+    detection_window_end: "2024-09-08"
+
+controls:
+  - corridor_id: C-GL-001
+    name: "Goma-Gisenyi"
+    country_pair: ["DRC", "Rwanda"]
+    control_class: "open_high_signal_border"
+    expected_behavior: "no_closed_transition"
+
+  - corridor_id: C-SS-003
+    name: "Kapoeta-Lodwar"
+    country_pair: ["South Sudan", "Kenya"]
+    control_class: "open_regional_movement_corridor"
+    expected_behavior: "no_closed_transition"
+
+  - corridor_id: C-ET-003
+    name: "Humera-Kassala"
+    country_pair: ["Ethiopia", "Sudan"]
+    control_class: "hard_case_same_macro_region_under_pressure"
+    expected_behavior: "risk_elevation_without_closed_transition"

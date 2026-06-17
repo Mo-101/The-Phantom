@@ -1,0 +1,87 @@
+{
+  "input": "/home/idona/MoStar/_apps/The-Phantom/src/data",
+  "output": "/home/idona/MoStar/_apps/The-Phantom/public/data/disease/lassa",
+  "files": {
+    "src/data/phantom_lf_18.csv": {
+      "status": "processed",
+      "rows": 1506
+    },
+    "src/data/sormas_cases_2023-09-02_ CH21(1).csv": {
+      "status": "processed",
+      "rows": 41675
+    },
+    "src/data/sormas_cases_2023-09-02_.21csv": {
+      "status": "processed",
+      "rows": 460
+    },
+    "src/data/sormas_cases_2023-09-02_.csv": {
+      "status": "processed",
+      "rows": 9485
+    },
+    "src/data/sormas_cases_2023-09-02_18.csv": {
+      "status": "processed",
+      "rows": 3101
+    },
+    "src/data/sormas_cases_2023-09-02_19.csv": {
+      "status": "processed",
+      "rows": 1703
+    },
+    "src/data/sormas_cases_2023-09-02_20.csv": {
+      "status": "processed",
+      "rows": 602
+    },
+    "src/data/sormas_cases_2023-09-02_22.csv": {
+      "status": "processed",
+      "rows": 1215
+    },
+    "src/data/sormas_cases_2023-09-02_23.csv": {
+      "status": "processed",
+      "rows": 2019
+    },
+    "src/data/sormas_cases_2023-09-02_CH19.csv": {
+      "status": "processed",
+      "rows": 1774
+    },
+    "src/data/sormas_cases_2023-09-02_CH20.csv": {
+      "status": "processed",
+      "rows": 1314
+    },
+    "src/data/sormas_cases_2023-09-02_Cholera17.csv": {
+      "status": "processed",
+      "rows": 3207
+    }
+  },
+  "totals": {
+    "filesDiscovered": 12,
+    "filesProcessed": 12,
+    "duplicateFilesSkipped": 0,
+    "rowsRead": 68061,
+    "duplicateCaseRowsSkipped": 600,
+    "skippedInvalidDisease": 11,
+    "aggregateFeatures": 3219,
+    "positiveFeatures": 877,
+    "geocodedAdminLocations": 0,
+    "skippedNoAdmin": 44537,
+    "seededSignals": 3219,
+    "choroplethAreas": 342
+  },
+  "privacy": {
+    "mode": "historical_admin_aggregate",
+    "removed": [
+      "case identifiers",
+      "epidemiological identifiers",
+      "patient names",
+      "addresses",
+      "phone numbers",
+      "facility names",
+      "occupation",
+      "free-text symptoms",
+      "travel history",
+      "CT/cycle-threshold values"
+    ],
+    "outputPolicy": "GeoJSON and database rows contain weekly administrative aggregates only, never raw case rows.",
+    "geocodingPolicy": "Missing GPS is resolved with ward/LGA/state admin text. Raw addresses are not used for public point generation.",
+    "defaultLocator": "Deterministic Nigeria admin centroids are used by default; pass --network-geocode to call an external geocoder.",
+    "cachePolicy": "Geocode cache keys are hashed; raw admin queries are not persisted as cache keys."
+  }
+}

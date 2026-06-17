@@ -1,5 +1,5 @@
 import { SentinelService } from "./sentinel";
-import { SignalRepository } from "../moscript/signal.repository";
+import { SignalRepository } from "@/moscripts/signal.repository";
 import neo4j from "neo4j-driver";
 import pg from "pg";
 
@@ -67,9 +67,9 @@ export class DiagnosticService {
     const start = Date.now();
     let driver;
     try {
-      const uri = process.env.VITE_NEO4J_URI || "bolt://localhost:7687";
-      const user = process.env.VITE_NEO4J_USER || "neo4j";
-      const password = process.env.VITE_NEO4J_PASSWORD || "";
+      const uri = process.env.NEO4J_URI || "bolt://localhost:7687";
+      const user = process.env.NEO4J_USER || "neo4j";
+      const password = process.env.NEO4J_PASSWORD || "";
       
       if (!password) throw new Error("Neo4j password not set");
       

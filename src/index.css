@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 60% 4%;
+    --foreground: 230 60% 90%;
+
+    --card: 228 40% 7%;
+    --card-foreground: 230 60% 90%;
+
+    --popover: 228 40% 7%;
+    --popover-foreground: 230 60% 90%;
+
+    --primary: 153 100% 45%;
+    --primary-foreground: 222 60% 4%;
+
+    --secondary: 228 30% 10%;
+    --secondary-foreground: 230 60% 90%;
+
+    --muted: 230 20% 18%;
+    --muted-foreground: 232 25% 55%;
+
+    --accent: 37 90% 55%;
+    --accent-foreground: 222 60% 4%;
+
+    --destructive: 2 100% 62%;
+    --destructive-foreground: 230 60% 90%;
+
+    --border: 230 25% 15%;
+    --input: 230 25% 15%;
+    --ring: 153 100% 45%;
+
+    --radius: 0.375rem;
+
+    /* Phantom POE semantic tokens */
+    --phantom-green: 153 100% 45%;
+    --phantom-amber: 37 90% 55%;
+    --phantom-red: 2 100% 62%;
+    --phantom-blue: 200 100% 44%;
+    --phantom-teal: 170 65% 55%;
+    --phantom-surface: 228 40% 5%;
+    --phantom-glow: 153 100% 45%;
+
+    --sidebar-background: 228 40% 5%;
+    --sidebar-foreground: 230 60% 90%;
+    --sidebar-primary: 153 100% 45%;
+    --sidebar-primary-foreground: 222 60% 4%;
+    --sidebar-accent: 228 30% 10%;
+    --sidebar-accent-foreground: 230 60% 90%;
+    --sidebar-border: 230 25% 15%;
+    --sidebar-ring: 153 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .text-phantom-green { color: hsl(var(--phantom-green)); }
+  .text-phantom-amber { color: hsl(var(--phantom-amber)); }
+  .text-phantom-red { color: hsl(var(--phantom-red)); }
+  .text-phantom-blue { color: hsl(var(--phantom-blue)); }
+  .text-phantom-teal { color: hsl(var(--phantom-teal)); }
+  .bg-phantom-surface { background-color: hsl(var(--phantom-surface)); }
+
+  .glow-green {
+    box-shadow: 0 0 12px hsl(var(--phantom-green) / 0.15),
+                0 0 4px hsl(var(--phantom-green) / 0.1);
+  }
+
+  .glow-green-text {
+    text-shadow: 0 0 8px hsl(var(--phantom-green) / 0.4);
+  }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  @keyframes radar-sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .animate-pulse-ring {
+    animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  .animate-radar {
+    animation: radar-sweep 3s linear infinite;
+  }
+}
+
+/* Corridor tooltip (Mapbox popup) */
+.corridor-tooltip .mapboxgl-popup-content {
+  background: hsl(228, 40%, 7%, 0.95) !important;
+  color: hsl(230, 60%, 90%) !important;
+  border: 1px solid hsl(153, 100%, 45%, 0.25);
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.corridor-tooltip .mapboxgl-popup-tip {
+  border-top-color: hsl(228, 40%, 7%, 0.95) !important;
+  border-bottom-color: hsl(228, 40%, 7%, 0.95) !important;
+}

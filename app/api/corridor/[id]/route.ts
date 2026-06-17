@@ -4,7 +4,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   
   try {
-    const { CorridorService } = await import('@/src/services/corridor');
+    const { CorridorService } = await import('@/services/corridor');
     const service = new CorridorService();
     const item = await service.getCorridorById(id);
 

@@ -1,0 +1,11 @@
+C-GL-001:
+  expected_closed_transition: false
+  basis: "No documented full border closure during 2024-06-01 to 2024-11-30."
+
+C-SS-003:
+  expected_closed_transition: false
+  basis: "No documented full border closure during 2024-06-01 to 2024-11-30."
+
+C-ET-003:
+  expected: "risk elevation allowed; full closure transition not expected unless independently documented."
+  expected_closed_transition: false

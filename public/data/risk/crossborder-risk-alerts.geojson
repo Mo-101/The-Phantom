@@ -1,0 +1,84 @@
+{
+  "type": "FeatureCollection",
+  "name": "crossborder-risk-alerts",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "alert_id": "XBR-GL-001",
+        "corridor_id": "C-GL-001",
+        "severity": "critical",
+        "risk_score": 86,
+        "title": "Great Lakes mobility-disease convergence",
+        "countries": "DRC / Rwanda / Uganda",
+        "trigger": "High-risk corridor overlap: displacement flow, porous crossing density, and historical disease signal proximity.",
+        "recommended_action": "Prioritize syndromic screening at informal crossings, mobile lab routing, and corridor-aware contact tracing.",
+        "updated_at": "2026-06-12T01:00:00Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [28.55, -2.2],
+            [31.05, -2.2],
+            [31.05, 0.35],
+            [28.55, 0.35],
+            [28.55, -2.2]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "alert_id": "XBR-NG-001",
+        "corridor_id": "C-NG-001",
+        "severity": "high",
+        "risk_score": 74,
+        "title": "Lake Chad cross-border alert",
+        "countries": "Nigeria / Niger / Chad / Cameroon",
+        "trigger": "EVD POE readiness gap intersects with seasonal movement and unmonitored border pressure.",
+        "recommended_action": "Stage rapid alert desks near lake transport nodes and reconcile event reports with POE readiness scores.",
+        "updated_at": "2026-06-12T01:00:00Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [11.45, 11.0],
+            [15.45, 11.0],
+            [15.45, 14.4],
+            [11.45, 14.4],
+            [11.45, 11.0]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "alert_id": "XBR-ET-001",
+        "corridor_id": "C-ET-001",
+        "severity": "watch",
+        "risk_score": 58,
+        "title": "Horn corridor watch zone",
+        "countries": "Ethiopia / Somalia / Kenya",
+        "trigger": "Moderate disease signal density near high-friction pastoral and market movement routes.",
+        "recommended_action": "Monitor sentinel reports and pre-position referral messaging at market-linked crossing points.",
+        "updated_at": "2026-06-12T01:00:00Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [38.2, -0.6],
+            [43.8, -0.6],
+            [43.8, 5.7],
+            [38.2, 5.7],
+            [38.2, -0.6]
+          ]
+        ]
+      }
+    }
+  ]
+}

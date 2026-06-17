@@ -1,0 +1,418 @@
+{
+  "_meta": {
+    "title": "Nigeria EVD Point-of-Entry Risk Dataset",
+    "version": "1.0.0-seed",
+    "generated": "2026-06-09",
+    "schema_version": "phantom-poe-evd-v1",
+    "methodology": "Transparent 0-100 composite risk score. See scoring_weights for breakdown.",
+    "scoring_weights": {
+      "outbreak_proximity": 0.35,
+      "corridor_movement_pressure": 0.25,
+      "poe_exposure_class": 0.20,
+      "surveillance_readiness_gap": 0.10,
+      "modifiers": 0.10
+    },
+    "data_sources": [
+      "WHO EVD Situation Reports (2018–2026)",
+      "Africa CDC Outbreak Bulletins",
+      "NCDC Nigeria Port Health Services Reports",
+      "OpenStreetMap / HDX Nigeria POE coordinates",
+      "Phantom Corridor Engine (corridor pressure proxy)",
+      "UNOCHA Nigeria Humanitarian Data"
+    ],
+    "assumptions_v1": [
+      "Surveillance readiness defaults to 0.45 (moderate gap) where no NCDC data available",
+      "Weather modifier defaults to 0.0 (neutral) pending seasonal layer integration",
+      "Insecurity modifier sourced from ACLED Nigeria 2025-2026 conflict density proxy",
+      "All scores are indicative — not operational — until validated by NCDC field teams",
+      "Corridor pressure is estimated from Phantom POE regional flow density, not live crossings"
+    ],
+    "risk_bands": {
+      "low": { "range": [0, 30], "color": "#00C896", "label": "Low" },
+      "moderate": { "range": [31, 55], "color": "#F5C518", "label": "Moderate" },
+      "high": { "range": [56, 75], "color": "#FF8C00", "label": "High" },
+      "critical": { "range": [76, 100], "color": "#FF2D55", "label": "Critical" }
+    }
+  },
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [3.3792, 6.4550] },
+      "properties": {
+        "id": "NG-POE-AIRPORT-LOS",
+        "name": "Murtala Muhammed International Airport",
+        "short_name": "Lagos Airport (LOS)",
+        "type": "airport",
+        "state": "Lagos",
+        "region": "South West",
+        "iso": "NG",
+        "risk_score": 62,
+        "risk_band": "high",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 22, "max": 35, "note": "Active EVD clusters in DRC; no current West Africa outbreak. Regional pressure moderate via Congo Basin corridor." },
+          "corridor_movement_pressure": { "value": 18, "max": 25, "note": "High international flight volume. Direct routes from DRC, Guinea, Sierra Leone, Uganda." },
+          "poe_exposure_class": { "value": 14, "max": 20, "note": "Highest passenger throughput POE in Nigeria. ~15M pax/year. Airport class: TIER-1." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "NCDC port health present. Thermal scanning confirmed 2024. Gap: inconsistent EVD-specific triage protocols." },
+          "modifiers": { "value": 4, "max": 10, "note": "High urban density Lagos. Healthcare surge capacity limited. No active conflict modifier." }
+        },
+        "drivers_summary": "High passenger volume + active DRC corridor pressure + limited EVD triage protocol standardization",
+        "recommended_action": "Validate EVD triage SOP compliance. Confirm isolation room readiness. Flag DRC direct flight passengers for enhanced screening.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "DRC-WEST-AFRICA-AIR",
+        "data_confidence": "medium-high"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [7.2632, 9.0065] },
+      "properties": {
+        "id": "NG-POE-AIRPORT-ABV",
+        "name": "Nnamdi Azikiwe International Airport",
+        "short_name": "Abuja Airport (ABV)",
+        "type": "airport",
+        "state": "FCT",
+        "region": "North Central",
+        "iso": "NG",
+        "risk_score": 51,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 18, "max": 35, "note": "DRC corridor indirect. No proximal EVD event." },
+          "corridor_movement_pressure": { "value": 14, "max": 25, "note": "Government/diplomatic hub. Lower tourist volume than LOS. Fewer endemic zone direct routes." },
+          "poe_exposure_class": { "value": 12, "max": 20, "note": "TIER-2 airport. ~4M pax/year." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "NCDC FCT coordination present. Port health services rated moderate by 2024 JEE Nigeria." },
+          "modifiers": { "value": 3, "max": 10, "note": "Capital city amplifier: if importation occurs, national response impact high." }
+        },
+        "drivers_summary": "Capital city amplification risk + indirect DRC corridor exposure",
+        "recommended_action": "Ensure EVD protocol refresh for port health staff. Capital city outbreak consequence warrants precautionary investment.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "CENTRAL-AFRICA-CORRIDOR",
+        "data_confidence": "medium"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [8.5256, 12.0022] },
+      "properties": {
+        "id": "NG-POE-AIRPORT-KAN",
+        "name": "Mallam Aminu Kano International Airport",
+        "short_name": "Kano Airport (KAN)",
+        "type": "airport",
+        "state": "Kano",
+        "region": "North West",
+        "iso": "NG",
+        "risk_score": 38,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 10, "max": 35, "note": "Geographically distant from active EVD zones. Sahel corridor — Sudan/Chad flux but low EVD pressure." },
+          "corridor_movement_pressure": { "value": 12, "max": 25, "note": "Hajj hub — seasonal mass movement to/from West Africa. High volume bursts." },
+          "poe_exposure_class": { "value": 10, "max": 20, "note": "TIER-2. Significant hajj season surge volume." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "Moderate readiness. Hajj health teams established but EVD-specific protocols not verified." },
+          "modifiers": { "value": 2, "max": 10, "note": "Seasonal mass movement risk modifier elevated during hajj period (May–Jul)." }
+        },
+        "drivers_summary": "Hajj mass movement seasonal risk spike + Sahel corridor access",
+        "recommended_action": "Seasonal EVD protocol activation during Hajj period. Coordinate with Saudi Arabia arrivals health screening.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "SAHEL-WEST-CORRIDOR",
+        "data_confidence": "medium"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [3.3675, 6.4306] },
+      "properties": {
+        "id": "NG-POE-PORT-APAPA",
+        "name": "Apapa Port",
+        "short_name": "Apapa Port",
+        "type": "seaport",
+        "state": "Lagos",
+        "region": "South West",
+        "iso": "NG",
+        "risk_score": 44,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 14, "max": 35, "note": "Coastal West Africa maritime corridor. Guinea/Sierra Leone shipping lanes." },
+          "corridor_movement_pressure": { "value": 13, "max": 25, "note": "Highest cargo volume port in Nigeria. Crew movement from endemic regions." },
+          "poe_exposure_class": { "value": 11, "max": 20, "note": "TIER-1 seaport. Crew/passenger movement lower than airport but non-trivial." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "Port health present but maritime EVD protocols less standardized than airports." },
+          "modifiers": { "value": 2, "max": 10, "note": "Crew shore leave creates diffuse urban exposure risk in Lagos metro." }
+        },
+        "drivers_summary": "Maritime crew movement from Guinea/SL corridor + diffuse Lagos urban exposure on shore leave",
+        "recommended_action": "Enforce maritime health declaration for vessels from endemic zones. Shore leave health screening for crew from West African ports.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "GULF-OF-GUINEA-MARITIME",
+        "data_confidence": "medium-low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [3.3200, 6.4350] },
+      "properties": {
+        "id": "NG-POE-PORT-TINCAN",
+        "name": "Tin Can Island Port",
+        "short_name": "Tin Can Port",
+        "type": "seaport",
+        "state": "Lagos",
+        "region": "South West",
+        "iso": "NG",
+        "risk_score": 40,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 13, "max": 35, "note": "Same corridor as Apapa. Lower international vessel frequency." },
+          "corridor_movement_pressure": { "value": 11, "max": 25, "note": "Second Lagos port. Lower crew volume than Apapa." },
+          "poe_exposure_class": { "value": 10, "max": 20, "note": "TIER-2 seaport." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "Port health assumed present. Readiness unverified at EVD level." },
+          "modifiers": { "value": 2, "max": 10, "note": "Proximity to Apapa creates shared urban exposure envelope." }
+        },
+        "drivers_summary": "Secondary Lagos maritime exposure, shared corridor with Apapa",
+        "recommended_action": "Coordinate screening protocols with Apapa. Avoid duplication gaps between the two Lagos port health units.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "GULF-OF-GUINEA-MARITIME",
+        "data_confidence": "low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [7.3347, 4.8472] },
+      "properties": {
+        "id": "NG-POE-PORT-ONNE",
+        "name": "Onne Oil and Gas Free Zone Port",
+        "short_name": "Onne Port",
+        "type": "seaport",
+        "state": "Rivers",
+        "region": "South South",
+        "iso": "NG",
+        "risk_score": 46,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 15, "max": 35, "note": "Niger Delta corridor. CAR/DRC movement via interior routes converges near Rivers State." },
+          "corridor_movement_pressure": { "value": 14, "max": 25, "note": "Oil industry international workforce. Frequent rotation from multiple countries including EVD-risk zones." },
+          "poe_exposure_class": { "value": 11, "max": 20, "note": "Industrial/cargo port. International oil company workforce creates non-standard exposure pathway." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "Industrial zone health infrastructure present but geared to occupational health not infectious disease." },
+          "modifiers": { "value": 2, "max": 10, "note": "Oil worker accommodation clusters create potential amplification environment." }
+        },
+        "drivers_summary": "International oil sector workforce rotation from EVD-risk zones + non-standard POE exposure pathway",
+        "recommended_action": "Engage NOGIC JV health officers. Establish EVD declaration requirement for international rotators. Screen on entry from known endemic zones.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "NIGER-DELTA-INDUSTRIAL",
+        "data_confidence": "medium-low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [8.3200, 4.9500] },
+      "properties": {
+        "id": "NG-POE-PORT-CALABAR",
+        "name": "Calabar Port",
+        "short_name": "Calabar Port",
+        "type": "seaport",
+        "state": "Cross River",
+        "region": "South South",
+        "iso": "NG",
+        "risk_score": 55,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 20, "max": 35, "note": "Closest Nigerian port to Cameroon border corridor. Cameroon has reported periodic EVD spillover risk from DRC." },
+          "corridor_movement_pressure": { "value": 15, "max": 25, "note": "Active cross-border trade with Cameroon. Mfum/Ekok land border feeding into same catchment." },
+          "poe_exposure_class": { "value": 12, "max": 20, "note": "TIER-2 seaport with cross-border overland feeder routes." },
+          "surveillance_readiness_gap": { "value": 5, "max": 10, "note": "Cross River State has previous EVD preparedness gaps per 2024 NCDC assessments." },
+          "modifiers": { "value": 3, "max": 10, "note": "Informal cross-border movement from Cameroon not fully captured at port." }
+        },
+        "drivers_summary": "Cameroon corridor proximity + informal movement + Cross River EVD readiness gap",
+        "recommended_action": "Prioritize EVD readiness assessment for Cross River port health. Coordinate with Mfum/Ekok land crossing. Activate Cameroon alert threshold.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "CAMEROON-SE-CORRIDOR",
+        "data_confidence": "medium"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [2.7136, 6.3617] },
+      "properties": {
+        "id": "NG-POE-LAND-SEME",
+        "name": "Seme Border Crossing",
+        "short_name": "Seme (Benin Republic)",
+        "type": "land",
+        "state": "Lagos",
+        "region": "South West",
+        "iso": "NG",
+        "risk_score": 58,
+        "risk_band": "high",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 18, "max": 35, "note": "Benin Republic border. West Africa corridor. Historical EVD importation risk via Togo/Benin route." },
+          "corridor_movement_pressure": { "value": 18, "max": 25, "note": "One of Nigeria's busiest land borders. High informal trader/traveller volume. Difficult to fully screen." },
+          "poe_exposure_class": { "value": 13, "max": 20, "note": "High-volume land crossing. Multiple informal crossing points along this corridor." },
+          "surveillance_readiness_gap": { "value": 6, "max": 10, "note": "Land border health post capacity limited. High throughput overwhelms screening infrastructure." },
+          "modifiers": { "value": 3, "max": 10, "note": "Informal bypass routes documented. Effective coverage below 60% estimated." }
+        },
+        "drivers_summary": "Highest volume SW land crossing + West Africa corridor + informal bypass routes + overwhelmed health post capacity",
+        "recommended_action": "Reinforce health post staffing. Implement risk-based rather than universal screening. Flag travellers from Togo/Benin for EVD awareness.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "WEST-AFRICA-COASTAL-LAND",
+        "data_confidence": "medium"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [2.9317, 6.8202] },
+      "properties": {
+        "id": "NG-POE-LAND-IDIROKO",
+        "name": "Idiroko Border Crossing",
+        "short_name": "Idiroko (Benin Republic)",
+        "type": "land",
+        "state": "Ogun",
+        "region": "South West",
+        "iso": "NG",
+        "risk_score": 52,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 17, "max": 35, "note": "Benin corridor. Parallel route to Seme." },
+          "corridor_movement_pressure": { "value": 16, "max": 25, "note": "High market trade crossing. Significant informal economy movement." },
+          "poe_exposure_class": { "value": 11, "max": 20, "note": "Moderate-volume land crossing." },
+          "surveillance_readiness_gap": { "value": 6, "max": 10, "note": "Limited health post infrastructure per field reports." },
+          "modifiers": { "value": 2, "max": 10, "note": "Acts as overflow route when Seme congested." }
+        },
+        "drivers_summary": "Parallel West Africa corridor + market trade overflow from Seme + limited health post",
+        "recommended_action": "Joint screening protocol with Seme. Deploy mobile health teams during peak market days.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "WEST-AFRICA-COASTAL-LAND",
+        "data_confidence": "medium-low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [8.2667, 13.0833] },
+      "properties": {
+        "id": "NG-POE-LAND-JIBIYA",
+        "name": "Jibiya / Magama Border Crossing",
+        "short_name": "Jibiya (Niger Republic)",
+        "type": "land",
+        "state": "Katsina",
+        "region": "North West",
+        "iso": "NG",
+        "risk_score": 41,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 10, "max": 35, "note": "Niger Republic border. Low direct EVD pressure but Sahel transit corridor." },
+          "corridor_movement_pressure": { "value": 14, "max": 25, "note": "Significant Sahel trade route. Movement of pastoralists and traders across season." },
+          "poe_exposure_class": { "value": 10, "max": 20, "note": "Active land crossing but not among highest volume." },
+          "surveillance_readiness_gap": { "value": 5, "max": 10, "note": "North West health post infrastructure strained." },
+          "modifiers": { "value": 2, "max": 10, "note": "Insecurity modifier: Katsina banditry risk affects health worker deployment continuity." }
+        },
+        "drivers_summary": "Sahel corridor transit + health infrastructure strain + insecurity continuity risk",
+        "recommended_action": "Ensure health post continuity plan during security incidents. Seasonal pastoralist screening protocols.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "SAHEL-WEST-CORRIDOR",
+        "data_confidence": "medium-low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [5.1167, 13.7500] },
+      "properties": {
+        "id": "NG-POE-LAND-ILLELA",
+        "name": "Illela Border Crossing",
+        "short_name": "Illela (Niger Republic)",
+        "type": "land",
+        "state": "Sokoto",
+        "region": "North West",
+        "iso": "NG",
+        "risk_score": 36,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 9, "max": 35, "note": "Niger corridor. Low direct EVD risk." },
+          "corridor_movement_pressure": { "value": 12, "max": 25, "note": "Trans-Sahara trade route feeder. Moderate throughput." },
+          "poe_exposure_class": { "value": 9, "max": 20, "note": "Secondary Sahel crossing." },
+          "surveillance_readiness_gap": { "value": 4, "max": 10, "note": "Moderate gap assumed." },
+          "modifiers": { "value": 2, "max": 10, "note": "Remote location limits rapid response capacity." }
+        },
+        "drivers_summary": "Trans-Sahara feeder route + remote location response lag",
+        "recommended_action": "Establish mobile response protocol for remote crossing. Periodic readiness assessment.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "SAHEL-WEST-CORRIDOR",
+        "data_confidence": "low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [12.9167, 12.9667] },
+      "properties": {
+        "id": "NG-POE-LAND-MAIGATARI",
+        "name": "Maigatari Border Crossing",
+        "short_name": "Maigatari (Niger Republic)",
+        "type": "land",
+        "state": "Jigawa",
+        "region": "North West",
+        "iso": "NG",
+        "risk_score": 43,
+        "risk_band": "moderate",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 11, "max": 35, "note": "Niger corridor. Indirect Chad basin exposure." },
+          "corridor_movement_pressure": { "value": 14, "max": 25, "note": "Significant cross-border trade. Livestock and goods." },
+          "poe_exposure_class": { "value": 10, "max": 20, "note": "Active crossing with informal parallel routes." },
+          "surveillance_readiness_gap": { "value": 5, "max": 10, "note": "Jigawa State health post capacity limited." },
+          "modifiers": { "value": 3, "max": 10, "note": "Proximity to Lake Chad basin — cholera/meningitis co-risk context." }
+        },
+        "drivers_summary": "Niger-Chad corridor exposure + informal routes + limited health post capacity",
+        "recommended_action": "Integrated surveillance approach covering EVD, cholera and meningitis at this crossing.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "SAHEL-EAST-CORRIDOR",
+        "data_confidence": "medium-low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [13.5500, 11.4833] },
+      "properties": {
+        "id": "NG-POE-LAND-BANKI",
+        "name": "Banki Border Crossing",
+        "short_name": "Banki (Cameroon)",
+        "type": "land",
+        "state": "Borno",
+        "region": "North East",
+        "iso": "NG",
+        "risk_score": 71,
+        "risk_band": "high",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 24, "max": 35, "note": "Cameroon border in Borno. Far North Cameroon has had EVD spillover watch events. DRC corridor accessible via CAR-Cameroon route." },
+          "corridor_movement_pressure": { "value": 18, "max": 25, "note": "Massive displacement movement due to Lake Chad Basin crisis. Estimated 2M+ IDP movements in this corridor. Screening coverage critically low." },
+          "poe_exposure_class": { "value": 14, "max": 20, "note": "Humanitarian corridor. Formal POE classification but effectively a mass displacement transit zone." },
+          "surveillance_readiness_gap": { "value": 9, "max": 10, "note": "CRITICAL: Active conflict zone. Health post operations intermittent. IDP camp density creates amplification risk if importation occurs." },
+          "modifiers": { "value": 6, "max": 10, "note": "Conflict modifier: MAXIMUM. Lake Chad Basin insecurity severely limits screening continuity." }
+        },
+        "drivers_summary": "CRITICAL: Mass IDP movement + Cameroon DRC spillover corridor + active conflict = near-zero effective screening capacity",
+        "recommended_action": "PRIORITY: Establish emergency mobile EVD screening at IDP transit points. INGO health partners (MSF, IRC) coordination essential. Cannot rely on static health post.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "LAKE-CHAD-BASIN-CORRIDOR",
+        "data_confidence": "medium"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [9.0500, 6.2833] },
+      "properties": {
+        "id": "NG-POE-LAND-MFUM",
+        "name": "Mfum / Ekok Border Crossing",
+        "short_name": "Mfum/Ekok (Cameroon)",
+        "type": "land",
+        "state": "Cross River",
+        "region": "South South",
+        "iso": "NG",
+        "risk_score": 68,
+        "risk_band": "high",
+        "score_breakdown": {
+          "outbreak_proximity": { "value": 23, "max": 35, "note": "Direct Cameroon corridor. South West Cameroon has had EVD proximity events. DRC-CAR-Cameroon spillover route ends here." },
+          "corridor_movement_pressure": { "value": 18, "max": 25, "note": "Active trade and informal movement. Cameroon Anglophone crisis has created displacement feeding this route." },
+          "poe_exposure_class": { "value": 13, "max": 20, "note": "Land crossing with informal parallel routes in forested terrain — difficult to monitor." },
+          "surveillance_readiness_gap": { "value": 8, "max": 10, "note": "Cross River State: health post understaffed. Forested border = informal bypasses common." },
+          "modifiers": { "value": 6, "max": 10, "note": "Anglophone Cameroon crisis displacement modifier. Forest terrain reduces effective monitoring." }
+        },
+        "drivers_summary": "HIGH: DRC spillover corridor via Cameroon + Anglophone crisis displacement + forest terrain bypass risk + understaffed health post",
+        "recommended_action": "PRIORITY: Surge health post staffing. Deploy forest corridor mobile teams. Cameroon MINSANTE coordination on EVD alert threshold.",
+        "source_date": "2026-06-01",
+        "phantom_corridor_tag": "CAMEROON-SE-CORRIDOR",
+        "data_confidence": "medium"
+      }
+    }
+  ]
+}
